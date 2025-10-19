@@ -1,0 +1,15 @@
+# Esto te permite hacer uso del módulo mod_rewrite 
+# para poder reescribir o redireccionar URLs.
+RewriteEngine On 
+# Detecta automáticamente la carpeta base donde está este .htaccess
+RewriteBase /appmovie/api
+# Si existe archivo o carpeta real, no redirige
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+# Entonces sobreescribe la URL de la siguiente forma:
+# Toma el fichero solicitado y se convierte en
+# un parámetro de URL. Esto además añade cualquier texto
+# de la URL original como parámetros adicionales [QSA]
+#QSA : añade la cadena de la consulta a la URL que sustituye.
+RewriteRule ^ index.php [QSA,L]

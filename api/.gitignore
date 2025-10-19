@@ -1,0 +1,12 @@
+#Composer
+/vendor/
+composer.lock
+# Configuración sensible (base de datos, claves, etc.)
+.env
+.env.local
+.env.*.local
+*.env
+#config.php
+
+# Cachés y logs
+*.log
