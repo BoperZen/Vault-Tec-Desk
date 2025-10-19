@@ -2,7 +2,7 @@
 # para poder reescribir o redireccionar URLs.
 RewriteEngine On 
 # Detecta automáticamente la carpeta base donde está este .htaccess
-RewriteBase /appmovie/api
+RewriteBase /Vault-Tec-Desk/api
 # Si existe archivo o carpeta real, no redirige
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
