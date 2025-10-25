@@ -23,16 +23,16 @@ class UserModel
 		
 	}
 
-	public function get($id)
+	/*public function get($idUser)  //Muestra la contra de un usuario
 	{
 			$rolM = new RolModel();
 			//Consulta sql
-			$vSql = "SELECT * FROM user where id=$id";
+			$vSql = "SELECT * FROM User where idUser=$idUser";
 			//Ejecutar la consulta
 			$vResultado = $this->enlace->ExecuteSQL($vSql);
 			if ($vResultado) {
 				$vResultado = $vResultado[0];
-				$rol = $rolM->getRolUser($id);
+				$rol = $rolM->getRolUser($idUser);
 				$vResultado->rol = $rol;
 				// Retornar el objeto
 				return $vResultado;
@@ -40,8 +40,41 @@ class UserModel
 				return null;
 			}
 		
-	}
-	public function allCustomer()
+	}*/
+
+	public function get($id)
+    {
+        $rolM = new RolModel();
+        $id = intval($id);
+
+        $vSql = "
+            SELECT
+                idUser,
+                Username,
+                Email,
+                idRol,
+                DATE_FORMAT(LastSesion, '%Y-%m-%d %H:%i:%s') AS LastSesion
+            FROM `User`
+            WHERE idUser = {$id}
+            LIMIT 1;
+        ";
+
+        $vResultado = $this->enlace->ExecuteSQL($vSql);
+        if ($vResultado) {
+            $vResultado = $vResultado[0];
+            $rol = $rolM->getRolUser($id);
+            $vResultado->rol = $rol;
+            return $vResultado;
+        } else {
+            return null;
+        }
+    }
+
+	//----------------------------------------------------------------------
+	//-------- Ajustar estos metodos para que trabajen con clientes -----------
+	//----------------------------------------------------------------------
+
+	public function allCustomer() //Important to change for clients, 
 	{
 			//Consulta sql
 			$vSql = "SELECT * FROM movie_rental.user
@@ -52,7 +85,7 @@ class UserModel
 			return $vResultado;
 		
 	}
-	public function customerbyShopRental($idShopRental)
+	public function customerbyShopRental($idShopRental) //Important to change for clients, but by ticket
 	{
 			//Consulta sql
 			$vSql = "SELECT * FROM movie_rental.user

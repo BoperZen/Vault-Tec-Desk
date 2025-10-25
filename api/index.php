@@ -29,6 +29,7 @@ require_once "models/ShopRentalModel.php";
 require_once "models/RentalModel.php";
 require_once "models/RentalMovieModel.php";
 require_once "models/ImageModel.php";
+require_once "models/StateModel.php";
 
 /***--- Agregar todos los controladores*/
 require_once "controllers/UserController.php";
@@ -38,6 +39,7 @@ require_once "controllers/GenreController.php";
 require_once "controllers/MovieController.php";
 require_once "controllers/ShopRentalController.php";
 require_once "controllers/RentalController.php";
+require_once "controllers/StateController.php";
 
 //Enrutador
 require_once "routes/RoutesController.php";

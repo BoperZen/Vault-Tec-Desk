@@ -177,6 +177,8 @@ class RoutesController
                 echo json_encode($json, http_response_code($json["status"]));
             }
         } catch (\Throwable $th) {
+            // Agrega esto:
+            error_log("Excepción en RoutesController: " . $th->getMessage() . " en línea " . $th->getLine());
             $json = ['status' => 500, 'result' => $th->getMessage()];
             echo json_encode($json, http_response_code($json["status"]));
         }
