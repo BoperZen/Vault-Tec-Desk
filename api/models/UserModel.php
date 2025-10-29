@@ -73,7 +73,7 @@ class UserModel
 	//----------------------------------------------------------------------
 	//-------- Ajustar estos metodos para que trabajen con clientes -----------
 	//----------------------------------------------------------------------
-
+	/*
 	public function allCustomer() //Important to change for clients, 
 	{
 			//Consulta sql
@@ -103,5 +103,5 @@ class UserModel
 	public function create($objeto)
 	{
 		
-	}
+	}*/
 }

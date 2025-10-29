@@ -24,6 +24,7 @@ class user
         //Dar respuesta
         $response->toJSON($result);
     }
+    /*
     public function allCustomer()
     {
         $response = new Response();
@@ -66,5 +67,5 @@ class user
         $result = $usuario->create($inputJSON);
         //Dar respuesta
         $response->toJSON($result);
-    }
+    }*/
 }

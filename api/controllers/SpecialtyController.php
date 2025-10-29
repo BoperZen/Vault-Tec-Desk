@@ -1,6 +1,6 @@
 <?php
-class state
-{/*
+class specialty
+{ /*
     public function index()
     {
         try {
@@ -16,12 +16,26 @@ class state
         }
     }*/
     
-    public function get($param)
+    public function getbyCat($param)
     {
         try {
             $response = new Response();
-            $state = new StateModel();
-            $result = $state->get($param);
+            $specialty = new SpecialtyModel();
+            $result = $specialty->getbyCat($param);
+            //Dar respuesta
+            $response->toJSON($result);
+        } catch (Exception $e) {
+            $response->toJSON($result);
+            handleException($e);
+        }
+    }
+
+    public function getbyTec($param)
+    {
+        try {
+            $response = new Response();
+            $specialty = new SpecialtyModel();
+            $result = $specialty->getbyTec($param);
             //Dar respuesta
             $response->toJSON($result);
         } catch (Exception $e) {

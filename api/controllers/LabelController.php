@@ -1,6 +1,6 @@
 <?php
-class state
-{/*
+class label
+{ /*
     public function index()
     {
         try {
@@ -16,12 +16,12 @@ class state
         }
     }*/
     
-    public function get($param)
+    public function getbyCat($param)
     {
         try {
             $response = new Response();
-            $state = new StateModel();
-            $result = $state->get($param);
+            $label = new LabelModel();
+            $result = $label->getbyCat($param);
             //Dar respuesta
             $response->toJSON($result);
         } catch (Exception $e) {
