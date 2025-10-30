@@ -7,6 +7,8 @@ import { Layout } from './components/Layout/Layout';
 import Dashboard from './components/Dashboard/Dashboard';
 import { PageNotFound } from './components/Home/PageNotFound';
 import TicketList from './components/Tickets/TicketList';
+import TechnicianList from './components/Technicians/TechnicianList';
+import CalendarView from './components/Calendar/CalendarView';
 
 const rutas = createBrowserRouter([
   {
@@ -17,9 +19,12 @@ const rutas = createBrowserRouter([
       // Tickets
       { path: "tickets", element: <TicketList /> },
       { path: "tickets/my", element: <TicketList /> },
+      { path: "tickets/assigned", element: <TicketList /> },
       { path: "assignments", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Vista de Asignaciones - En construcción</h2></div> },
-      // Técnicos
-      { path: "technicians", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Lista de Técnicos - En construcción</h2></div> },
+      // Técnicos (solo admins)
+      { path: "technicians", element: <TechnicianList /> },
+      // Calendario (semanal para clientes, mensual para admins/técnicos)
+      { path: "calendar", element: <CalendarView /> },
       // Categorías
       { path: "categories", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Lista de Categorías - En construcción</h2></div> },
       // Configuración

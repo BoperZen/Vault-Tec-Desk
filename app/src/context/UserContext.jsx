@@ -11,13 +11,13 @@ export const useUser = () => {
 };
 
 export const UserProvider = ({ children }) => {
-  // Usuario Admin por defecto (para testing)
+  // Usuario configurado desde .env
   const [currentUser, setCurrentUser] = useState({
-    idUser: 1,
-    username: 'Admin',
-    email: 'admin@vaulttec.com',
-    idRol: 1, // 1: Admin, 2: Cliente, 3: Técnico
-    roleName: 'Administrador'
+    idUser: parseInt(import.meta.env.VITE_USER_ID) || 5,
+    username: import.meta.env.VITE_USER_NAME || 'Usuario',
+    email: import.meta.env.VITE_USER_EMAIL || 'user@example.com',
+    idRol: parseInt(import.meta.env.VITE_USER_ROLE) || 2, // 3: Admin, 2: Cliente, 1: Técnico
+    roleName: import.meta.env.VITE_USER_ROLE_NAME || 'Usuario'
   });
 
   const changeUser = (user) => {

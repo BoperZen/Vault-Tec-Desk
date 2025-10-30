@@ -1,232 +1,120 @@
-"use client";
-
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Home, Ticket, User, Calendar } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useUser } from '@/context/UserContext';
+import { useSidebar } from '@/components/ui/sidebar';
+import { cn } from '@/lib/utils';
 import {
-  Layers,
-  Film,
-  BookOpen,
-  Filter,
-  Wrench,
-  LogIn,
-  UserPlus,
-  LogOut,
-  ShoppingCart,
-  Menu,
-  X,
-  ChevronDown,
-  Clapperboard,
-  User,
-} from "lucide-react";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-import { Badge } from "@/components/ui/badge";
-import {
-  Menubar,
-  MenubarMenu,
-  MenubarTrigger,
-  MenubarContent,
-  MenubarItem,
-} from "@/components/ui/menubar";
-import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet";
-
-const userData = { email: "demo@correo.com" };
-
-const navItems = [
-  { title: "Películas", href: "/movie", icon: <Film className="h-4 w-4" /> },
-  {
-    title: "Catálogo de Películas",
-    href: "/movie/",
-    icon: <BookOpen className="h-4 w-4" />,
-  },
-  {
-    title: "Filtrar Películas",
-    href: "/movie/filter",
-    icon: <Filter className="h-4 w-4" />,
-  },
-];
-
-const mantItems = [
-  {
-    title: "Mantenimiento Películas",
-    href: "movie/table",
-    icon: <Wrench className="h-4 w-4" />,
-  },
-];
-
-const userItems = [
-  { title: "Login", href: "/user/login", icon: <LogIn className="h-4 w-4" /> },
-  {
-    title: "Registrarse",
-    href: "/user/create",
-    icon: <UserPlus className="h-4 w-4" />,
-  },
-  {
-    title: "Logout",
-    href: "/user/logout",
-    icon: <LogOut className="h-4 w-4" />,
-  },
+const navigationItems = [
+  { title: 'Home', icon: Home, url: '/' },
+  { title: 'Tickets', icon: Ticket, url: '/tickets' },
+  { title: 'Calendario', icon: Calendar, url: '/calendar' },
 ];
 
 export default function Header() {
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const { currentUser } = useUser();
+  const location = useLocation();
+  const { open } = useSidebar();
+
+  const isActive = (url) => {
+    if (url === '/') return location.pathname === '/';
+    return location.pathname.startsWith(url);
+  };
 
   return (
-    <header className="w-full fixed top-0 left-0 z-50 backdrop-blur-xl bg-gradient-to-r from-primary/80 via-primary/60 to-primary/80 border-b border-white/10 shadow-lg">
-      <div className="flex items-center justify-between px-6 py-3 max-w-[1280px] mx-auto text-white">
-
-        {/* -------- Logo -------- */}
-        <Link
-          to="/"
-          className="flex items-center gap-2 text-xl font-semibold tracking-wide hover:opacity-90 transition"
+    <header className="fixed top-0 right-0 z-40 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-all duration-300" style={{ left: open ? '20rem' : '5rem' }}>
+      <div className="flex h-[100px] items-center px-6 gap-4 justify-between">
+        {/* Logo - Se oculta cuando el sidebar está abierto */}
+        <Link 
+          to="/" 
+          className={cn(
+            "flex items-center group transition-all duration-300 ease-in-out",
+            open ? "opacity-0 scale-95 pointer-events-none absolute" : "opacity-100 scale-100"
+          )}
         >
-          <Clapperboard className="h-6 w-6" />
-          <span className="hidden sm:inline">MoviesApp</span>
+          <img 
+            src="/vault-tec-logo.svg" 
+            alt="Vault-Tec Logo" 
+            className="h-[80px] w-auto object-contain group-hover:scale-105 transition-transform"
+          />
         </Link>
 
-        {/* -------- Menú escritorio -------- */}
-        <div className="hidden md:flex flex-1 justify-center">
-          <Menubar className="w-auto bg-transparent border-none shadow-none space-x-6">
-            {/* Películas */}
-            <MenubarMenu>
-              <MenubarTrigger className="text-white font-medium flex items-center gap-1 hover:text-secondary transition">
-                <Film className="h-4 w-4" /> Películas
-                <ChevronDown className="h-3 w-3" />
-              </MenubarTrigger>
-              <MenubarContent className="bg-primary/0 backdrop-blur-md border-white/10">
-                {navItems.map((item) => (
-                  <MenubarItem key={item.href} asChild>
-                    <Link
-                      to={item.href}
-                      className="flex items-center gap-2 py-2 px-3 rounded-md text-sm hover:bg-accent/10 transition"
-      >
-        
-                      {item.icon} {item.title}
-                    </Link>
-                  </MenubarItem>
-                ))}
-              </MenubarContent>
-            </MenubarMenu>
+        {/* Right Navigation - Siempre en la derecha */}
+        <nav className="flex items-center gap-6 ml-auto">
+          {/* Navigation Items */}
+          {navigationItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.url);
+            
+            return (
+              <Link
+                key={item.url}
+                to={item.url}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 relative group",
+                  active 
+                    ? "text-primary" 
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="font-medium text-sm">{item.title}</span>
+                {active && (
+                  <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-primary" />
+                )}
+              </Link>
+            );
+          })}
 
-            {/* Mantenimientos */}
-            <MenubarMenu>
-              <MenubarTrigger className="text-white font-medium flex items-center gap-1 hover:text-secondary transition">
-                <Layers className="h-4 w-4" /> Mantenimientos
-                <ChevronDown className="h-3 w-3" />
-              </MenubarTrigger>
-              <MenubarContent className="bg-primary/0 backdrop-blur-md border-white/10">
-                {mantItems.map((item) => (
-                  <MenubarItem key={item.href} asChild> 
-                    <Link
-                      to={item.href}
-                      className="flex items-center gap-2 py-2 px-3 rounded-md text-sm hover:bg-accent/10 transition"
-                    >
-                    {item.icon} {item.title}
-                    </Link>
-                  </MenubarItem>
-                ))}
-              </MenubarContent>
-            </MenubarMenu>
-
-            {/* Usuario */}
-            <MenubarMenu>
-              <MenubarTrigger className="text-white font-medium flex items-center gap-1 hover:text-secondary transition">
-                <User className="h-4 w-4" /> {userData.email}
-                <ChevronDown className="h-3 w-3" />
-              </MenubarTrigger>
-              <MenubarContent className="bg-primary/0 backdrop-blur-md border-white/10">
-                {userItems.map((item) => (
-                  <MenubarItem key={item.href} asChild>
-                    <Link
-                      to={item.href}
-                      className="flex items-center gap-2 py-2 px-3 rounded-md text-sm hover:bg-accent/10 transition"
-                    >
-                      {item.icon} {item.title}
-                    </Link>
-                  </MenubarItem>
-                ))}
-              </MenubarContent>
-            </MenubarMenu>
-          </Menubar>
-        </div>
-
-        {/* -------- Carrito + Menú móvil -------- */}
-        <div className="flex items-center gap-4">
-          <Link to="/cart" className="relative hover:opacity-80">
-            <ShoppingCart className="h-6 w-6" />
-            <Badge
-              className="absolute -top-2 -right-3 rounded-full px-2 py-0 text-xs font-semibold"
-              variant="secondary"
-            >
-              3
-            </Badge>
-          </Link>
-
-          {/* Menú móvil */}
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <button className="md:hidden inline-flex items-center justify-center p-2 rounded-lg bg-white/10 hover:bg-white/20 transition">
-                {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-              </button>
-            </SheetTrigger>
-            <SheetContent side="left" className="bg-accent/10 transition text-white backdrop-blur-lg w-72">
-              <nav className="mt-8 px-4 space-y-6">
-                <div>
-                  <Link to="/" className="flex items-center gap-2 text-lg font-semibold">
-                    <Clapperboard /> MoviesApp
-                  </Link>
+          {/* User Avatar */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                className="relative h-10 w-10 rounded-full hover:ring-2 hover:ring-primary/20 transition-all"
+              >
+                <Avatar className="h-10 w-10 ring-2 ring-primary/10">
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground font-semibold">
+                    {currentUser.username.substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none">{currentUser.username}</p>
+                  <p className="text-xs leading-none text-muted-foreground">
+                    {currentUser.email}
+                  </p>
+                  <p className="text-xs text-accent font-medium mt-1">
+                    {currentUser.roleName}
+                  </p>
                 </div>
-
-                <div>
-                  <h4 className="mb-2 text-lg font-semibold flex items-center gap-2">
-                    <Film /> Películas
-                  </h4>
-                  {navItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      to={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className="flex items-center gap-2 py-2 px-3 rounded-md text-white/90 hover:bg-white/10 transition"
-                    >
-                      {item.icon} {item.title}
-                    </Link>
-                  ))}
-                </div>
-
-                <div>
-                  <h4 className="mb-2 text-lg font-semibold flex items-center gap-2">
-                    <Layers /> Mantenimientos
-                  </h4>
-                  {mantItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      to={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className="flex items-center gap-2 py-2 px-3 rounded-md text-white/90 hover:bg-white/10 transition"
-                    >
-                      {item.icon} {item.title}
-                    </Link>
-                  ))}
-                </div>
-
-                <div>
-                  <h4 className="mb-2 text-lg font-semibold flex items-center gap-2">
-                    <User /> {userData.email}
-                  </h4>
-                  {userItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      to={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className="flex items-center gap-2 py-2 px-3 rounded-md text-white/90 hover:bg-white/10 transition"
-                    >
-                      {item.icon} {item.title}
-                    </Link>
-                  ))}
-                </div>
-              </nav>
-            </SheetContent>
-          </Sheet>
-        </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/settings" className="cursor-pointer">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Configuración</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-destructive cursor-pointer">
+                Cerrar Sesión
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </nav>
       </div>
     </header>
   );

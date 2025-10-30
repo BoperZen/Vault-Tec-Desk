@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Clock, 
   User, 
@@ -14,6 +14,9 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
+import { useRole } from '@/hooks/use-role';
+import { useLocation } from 'react-router-dom';
+import TicketService from '@/services/TicketService';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -121,17 +124,174 @@ const getStateIcon = (state) => {
 };
 
 export default function TicketList() {
-  const [tickets] = useState(mockTickets);
+  const location = useLocation();
+  const { role } = useRole();
+  const technicianId = import.meta.env.VITE_TECHNICIAN_ID;
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [expandedTicket, setExpandedTicket] = useState(null);
+
+  useEffect(() => {
+    loadTickets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  const calculateSLA = (creationDate, state, category) => {
+    // SLA por categoría basado en la tabla real del sistema
+    // Formato: [MaxAnswerTime (Respuesta), MaxResolutionTime (Resolución)]
+    const SLA_BY_CATEGORY = {
+      'Sistemas transaccionales': { answer: 1, resolution: 4 },      // idSLA 1
+      'Cajeros automaticos': { answer: 2, resolution: 6 },            // idSLA 2
+      'Fraudes y alertas Vault': { answer: 1, resolution: 2 },       // idSLA 3
+      'Atención al cliente Vault': { answer: 2, resolution: 8 },     // idSLA 4
+      'Default': { answer: 2, resolution: 8 }                         // Por defecto
+    };
+    
+    // Obtener el SLA según la categoría, o usar el default
+    const slaConfig = SLA_BY_CATEGORY[category] || SLA_BY_CATEGORY['Default'];
+    
+    // Usar tiempo de resolución como métrica principal
+    const SLA_HOURS = slaConfig.resolution;
+    
+    const now = new Date();
+    const created = new Date(creationDate);
+    const hoursElapsed = (now - created) / (1000 * 60 * 60);
+    const hoursRemaining = Math.max(0, SLA_HOURS - hoursElapsed);
+    const progress = Math.min(100, (hoursElapsed / SLA_HOURS) * 100);
+    
+    // Si está cerrado o resuelto, SLA al 100%
+    if (state === 'Cerrado' || state === 'Resuelto') {
+      return { hoursRemaining: 0, progress: 100 };
+    }
+    
+    return { 
+      hoursRemaining: Math.round(hoursRemaining * 10) / 10, // Redondear a 1 decimal
+      progress: Math.round(progress) 
+    };
+  };
+
+  const loadTickets = async () => {
+    try {
+      setLoading(true);
+      const response = await TicketService.getTickets();
+      if (response.data.success) {
+        let allTickets = response.data.data;
+        
+        // Filtrar tickets según el rol y la ruta
+        const isAssignedRoute = location.pathname === '/tickets/assigned';
+        
+        if (role === 1) {
+          // Técnicos: Ver solo sus tickets asignados (siempre)
+          allTickets = allTickets.filter(
+            ticket => parseInt(ticket.Assign?.Technician?.idTechnician) === parseInt(technicianId)
+          );
+        } else if (role === 2) {
+          // Clientes: Ver SIEMPRE solo sus propios tickets (sin importar la ruta)
+          allTickets = allTickets.filter(
+            ticket => parseInt(ticket.User?.idUser) === parseInt(import.meta.env.VITE_USER_ID)
+          );
+        } else if (role === 3 && isAssignedRoute) {
+          // Admin en "Tickets Asignados": Ver todos los tickets que tienen asignación
+          allTickets = allTickets.filter(ticket => ticket.Assign !== null);
+        }
+        // role === 3 en /tickets: Ver todos los tickets (sin filtro)
+        
+        // Agregar cálculos de SLA a cada ticket
+        const ticketsWithSLA = allTickets.map(ticket => {
+          const sla = calculateSLA(ticket.CreationDate, ticket.State, ticket.Category);
+          return {
+            ...ticket,
+            SLAHoursRemaining: sla.hoursRemaining,
+            SLAProgress: sla.progress
+          };
+        });
+        setTickets(ticketsWithSLA);
+      } else {
+        setError('Error al cargar los tickets');
+      }
+    } catch (err) {
+      console.error('Error loading tickets:', err);
+      setError('Error al conectar con el servidor');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6 container mx-auto px-4">
+        {/* Header Skeleton */}
+        <div className="flex items-center justify-between mt-4">
+          <div className="space-y-2">
+            <div className="h-9 w-32 bg-muted animate-pulse rounded-lg" />
+            <div className="h-4 w-64 bg-muted animate-pulse rounded-lg" />
+          </div>
+          <div className="h-9 w-24 bg-muted animate-pulse rounded-lg" />
+        </div>
+
+        {/* Tickets Skeleton */}
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="overflow-hidden">
+              <CardHeader className="pb-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 space-y-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="h-6 w-16 bg-muted animate-pulse rounded-md" />
+                      <div className="h-6 w-20 bg-muted animate-pulse rounded-md" />
+                      <div className="h-6 w-24 bg-muted animate-pulse rounded-md" />
+                      <div className="h-6 w-28 bg-muted animate-pulse rounded-md" />
+                    </div>
+                    <div className="h-7 w-3/4 bg-muted animate-pulse rounded-lg" />
+                    <div className="flex items-center gap-4">
+                      <div className="h-4 w-24 bg-muted animate-pulse rounded-md" />
+                      <div className="h-4 w-32 bg-muted animate-pulse rounded-md" />
+                    </div>
+                    <div className="h-2 w-full bg-muted animate-pulse rounded-full" />
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-4">
+          <AlertCircle className="w-12 h-12 text-destructive mx-auto" />
+          <p className="text-destructive">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 container mx-auto px-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Tickets</h1>
+          <h1 className="text-3xl font-bold tracking-tight mt-4">
+            {role === 1 
+              ? 'Mis Tickets Asignados' 
+              : location.pathname === '/tickets/assigned'
+              ? 'Tickets Asignados'
+              : location.pathname === '/tickets/my'
+              ? 'Mis Tickets'
+              : 'Todos los Tickets'}
+          </h1>
           <p className="text-muted-foreground mt-1">
-            Gestiona y visualiza todos los tickets del sistema
+            {role === 1 
+              ? 'Tickets asignados a ti' 
+              : location.pathname === '/tickets/assigned'
+              ? 'Todos los tickets asignados a técnicos'
+              : location.pathname === '/tickets/my'
+              ? 'Tus tickets creados'
+              : 'Gestiona y visualiza todos los tickets del sistema'}
           </p>
         </div>
         <Badge variant="outline" className="text-sm px-4 py-2">
@@ -140,7 +300,7 @@ export default function TicketList() {
       </div>
 
       {/* Tickets List with Collapsible */}
-      <div className="space-y-4">
+      <div className="space-y-4 mb-5">
         {tickets.map((ticket) => (
           <Collapsible
             key={ticket.idTicket}
@@ -166,7 +326,7 @@ export default function TicketList() {
                         </Badge>
                         <Badge 
                           variant="outline" 
-                          className={`text-xs ${ticket.SLAHoursRemaining <= 6 ? 'border-destructive/50 text-destructive' : ticket.SLAHoursRemaining <= 24 ? 'border-yellow-500/50 text-yellow-600' : 'border-green-500/50 text-green-600'}`}
+                          className={`text-xs ${ticket.SLAHoursRemaining <= 0.5 ? 'border-destructive/50 text-destructive' : ticket.SLAHoursRemaining <= 2 ? 'border-yellow-500/50 text-yellow-600' : 'border-green-500/50 text-green-600'}`}
                         >
                           <Clock className="w-3 h-3 mr-1" />
                           {ticket.SLAHoursRemaining}h restantes
@@ -180,11 +340,11 @@ export default function TicketList() {
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
-                          <span>{new Date(ticket.DateOfEntry).toLocaleDateString()}</span>
+                          <span>{new Date(ticket.CreationDate || ticket.DateOfEntry).toLocaleDateString()}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <User className="w-4 h-4" />
-                          <span>{ticket.User.Username}</span>
+                          <span>{ticket.User?.Username || 'N/A'}</span>
                         </div>
                       </div>
 
@@ -257,7 +417,7 @@ export default function TicketList() {
                       <CardContent>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="text-center p-2 rounded-lg bg-background/50">
-                            <p className="text-xl font-bold text-primary">{ticket.StateRecords.length}</p>
+                            <p className="text-xl font-bold text-primary">{ticket.StateRecords?.length || 0}</p>
                             <p className="text-[10px] text-muted-foreground">Cambios</p>
                           </div>
                           <div className="text-center p-2 rounded-lg bg-background/50">
@@ -266,7 +426,7 @@ export default function TicketList() {
                           </div>
                           <div className="text-center p-2 rounded-lg bg-background/50">
                             <p className="text-xl font-bold text-primary">
-                              {Math.floor((new Date() - new Date(ticket.DateOfEntry)) / (1000 * 60 * 60 * 24))}d
+                              {Math.floor((new Date() - new Date(ticket.CreationDate)) / (1000 * 60 * 60 * 24))}d
                             </p>
                             <p className="text-[10px] text-muted-foreground">Días</p>
                           </div>
@@ -285,7 +445,7 @@ export default function TicketList() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
-                        {ticket.StateRecords.map((record) => {
+                        {ticket.StateRecords?.map((record) => {
                           const StateIcon = getStateIcon(record.State).icon;
                           const iconColor = getStateIcon(record.State).color;
                           return (
@@ -304,7 +464,7 @@ export default function TicketList() {
                                   </span>
                                 </div>
                               <p className="text-xs text-muted-foreground">{record.Observation}</p>
-                              {record.Images.length > 0 && (
+                              {record.Images?.length > 0 && (
                                 <div className="flex items-center gap-1 text-xs text-primary mt-1">
                                   <ImageIcon className="w-3 h-3" />
                                   <span>{record.Images.length} imagen(es)</span>
@@ -313,7 +473,7 @@ export default function TicketList() {
                             </div>
                           </div>
                           );
-                        })}
+                        }) || <p className="text-sm text-muted-foreground">No hay historial disponible</p>}
                       </div>
                     </CardContent>
                   </Card>
