@@ -1,0 +1,18 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="#1a1a1a"/>
+  
+  <!-- Dollar Sign -->
+  <g transform="translate(16, 16)">
+    <!-- Vertical line -->
+    <rect x="-1" y="-10" width="2" height="20" fill="#C89E2F"/>
+    
+    <!-- S curve -->
+    <path d="M -5 -6 Q -5 -8 -3 -8 L 3 -8 Q 5 -8 5 -6 Q 5 -4 3 -3 L -3 -1 Q -5 0 -5 2 Q -5 4 -3 4 L 3 4 Q 5 4 5 6" 
+          stroke="#C89E2F" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Small wings -->
+  <line x1="4" y1="16" x2="10" y2="16" stroke="#C89E2F" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="22" y1="16" x2="28" y2="16" stroke="#C89E2F" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

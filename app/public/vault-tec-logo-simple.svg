@@ -1,0 +1,36 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="100" cy="100" r="95" fill="#1a1a1a" stroke="#C89E2F" stroke-width="3"/>
+  
+  <!-- Dollar Sign -->
+  <g transform="translate(100, 100)">
+    <!-- Vertical line of $ -->
+    <rect x="-4" y="-50" width="8" height="100" fill="#C89E2F"/>
+    
+    <!-- S curve -->
+    <path d="M -25 -30 Q -25 -40 -15 -40 L 15 -40 Q 25 -40 25 -30 Q 25 -20 15 -15 L -15 -5 Q -25 0 -25 10 Q -25 20 -15 20 L 15 20 Q 25 20 25 30" 
+          stroke="#C89E2F" stroke-width="12" fill="none" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Wings Left -->
+  <g transform="translate(30, 100)">
+    <rect x="0" y="-15" width="35" height="4" rx="2" fill="#C89E2F" stroke="#235879" stroke-width="1"/>
+    <rect x="5" y="-8" width="30" height="4" rx="2" fill="#C89E2F" stroke="#235879" stroke-width="1"/>
+    <rect x="10" y="-1" width="25" height="4" rx="2" fill="#C89E2F" stroke="#235879" stroke-width="1"/>
+    <rect x="15" y="6" width="20" height="4" rx="2" fill="#C89E2F" stroke="#235879" stroke-width="1"/>
+    <rect x="20" y="13" width="15" height="4" rx="2" fill="#C89E2F" stroke="#235879" stroke-width="1"/>
+  </g>
+  
+  <!-- Wings Right -->
+  <g transform="translate(135, 100)">
+    <rect x="0" y="-15" width="35" height="4" rx="2" fill="#C89E2F" stroke="#235879" stroke-width="1"/>
+    <rect x="0" y="-8" width="30" height="4" rx="2" fill="#C89E2F" stroke="#235879" stroke-width="1"/>
+    <rect x="0" y="-1" width="25" height="4" rx="2" fill="#C89E2F" stroke="#235879" stroke-width="1"/>
+    <rect x="0" y="6" width="20" height="4" rx="2" fill="#C89E2F" stroke="#235879" stroke-width="1"/>
+    <rect x="0" y="13" width="15" height="4" rx="2" fill="#C89E2F" stroke="#235879" stroke-width="1"/>
+  </g>
+  
+  <!-- VAULT-TEC Text -->
+  <text x="100" y="175" font-family="Arial, sans-serif" font-size="20" font-weight="bold" 
+        fill="#C89E2F" text-anchor="middle" letter-spacing="3">VAULT-TEC</text>
+</svg>

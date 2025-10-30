@@ -9,20 +9,18 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] p-8">
-      <div className="max-w-4xl w-full space-y-8">
+      <div className="container max-w-7xl w-full space-y-8">
         {/* Welcome Section */}
         <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-vault-glow mb-4">
-            <svg
-              viewBox="0 0 24 24"
-              className="w-10 h-10 text-primary"
-              fill="currentColor"
-            >
-              <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5zm0 18c-3.86-.95-7-5.03-7-9V8.3l7-3.11 7 3.11V11c0 3.97-3.14 8.05-7 9z" />
-            </svg>
+          <div className="inline-flex items-center justify-center w-full max-w-xs sm:max-w-md md:max-w-xl h-48 sm:h-64 md:h-80 mb-1">
+            <img 
+              src="/vault-tec-logo.svg" 
+              alt="Vault-Tec Logo" 
+              className="w-full h-full object-contain drop-shadow-lg hover:scale-105 transition-transform"
+            />
           </div>
           
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Welcome to Vault-Tec Desk
           </h1>
           
@@ -92,16 +90,6 @@ export default function Dashboard() {
               </Link>
             </CardContent>
           </Card>
-        </div>
-
-        {/* Get Started Button */}
-        <div className="text-center pt-8">
-          <Link to="/tickets">
-            <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/30">
-              Get Started
-              <ArrowRight className="ml-2 w-5 h-5" />
-            </Button>
-          </Link>
         </div>
 
         {/* Stats (Optional) */}
