@@ -3,44 +3,59 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 :root {
-  --background: oklch(0.97 0 0);
-  --foreground: oklch(0.23 0 0);
-  --card:  #ffffff;
-  --card-foreground: oklch(0.23 0 0);
-  --popover:  #ffffff;
-  --popover-foreground: oklch(0.23 0 0);
-  --primary:  #dc143c;
-  --primary-foreground: oklch(1.00 0 0);
-  --secondary:  #daa520;
-  --secondary-foreground: oklch(0.23 0 0);
-  --muted: oklch(0.91 0 0);
-  --muted-foreground: oklch(0.45 0 0);
-  --accent: oklch(0.65 0.19 253.20);
-  --accent-foreground: oklch(1.00 0 0);
+  /* Vault-Tec Color Palette */
+  --background: oklch(0.96 0.005 250); /* #F3F5F6 */
+  --foreground: oklch(0.19 0.02 220); /* #0D1B24 */
+  --card: oklch(1.00 0 0); /* #FFFFFF */
+  --card-foreground: oklch(0.19 0.02 220);
+  --popover: oklch(1.00 0 0); /* #FFFFFF */
+  --popover-foreground: oklch(0.19 0.02 220);
+  --primary: oklch(0.68 0.12 75); /* #C89E2F - Vault Gold */
+  --primary-foreground: oklch(0.15 0.02 220); /* #071018 */
+  --secondary: oklch(0.75 0.15 84); /* Complementary gold */
+  --secondary-foreground: oklch(0.19 0.02 220);
+  --muted: oklch(0.93 0.005 250); /* #E9ECEF */
+  --muted-foreground: oklch(0.54 0.02 220); /* #788794 */
+  --accent: oklch(0.42 0.08 230); /* #235879 - Vault Blue */
+  --accent-foreground: oklch(1.00 0 0); /* #ffffff */
   --destructive: oklch(0.58 0.24 28.48);
-  --border: oklch(0.85 0 0);
-  --input: oklch(0.96 0 0);
-  --ring: oklch(0.57 0.22 20.09);
-  --chart-1: oklch(0.65 0.22 36.85);
-  --chart-2: oklch(0.60 0.11 184.15);
-  --chart-3: oklch(0.40 0.07 227.18);
+  --border: oklch(0.92 0.005 250); /* rgba(15,23,36,0.06) */
+  --input: oklch(0.96 0.005 250);
+  --ring: oklch(0.42 0.08 230 / 0.16); /* rgba(35,88,121,0.16) */
+  --placeholder: oklch(0.64 0.02 220); /* #98A6B3 */
+
+  /* Vault-Tec Special Effects */
+  --surface: oklch(1.00 0 0); /* #FFFFFF */
+  --metal-sheen: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(0,0,0,0.02));
+  --vault-glow: oklch(0.68 0.12 75 / 0.12); /* rgba(200,158,47,0.12) */
+  --secure-ring: oklch(0.42 0.08 230 / 0.18); /* rgba(35,88,121,0.18) */
+  --bevel: oklch(1.00 0 0 / 0.06); /* rgba(255,255,255,0.06) */
+  --elevation-1: oklch(0.18 0.02 220 / 0.04); /* rgba(15,23,36,0.04) */
+  --holo-accent: linear-gradient(90deg, rgba(35,88,121,0.12), rgba(200,158,47,0.06));
+
+  /* Chart Colors - Vault-Tec themed */
+  --chart-1: oklch(0.68 0.12 75); /* Primary gold */
+  --chart-2: oklch(0.42 0.08 230); /* Accent blue */
+  --chart-3: oklch(0.60 0.11 184.15);
   --chart-4: oklch(0.83 0.17 81.03);
-  --chart-5: oklch(0.77 0.17 65.36);
-  --sidebar: oklch(0.97 0 0);
-  --sidebar-foreground: oklch(0.23 0 0);
-  --sidebar-primary: oklch(0.57 0.22 20.09);
-  --sidebar-primary-foreground: oklch(1.00 0 0);
-  --sidebar-accent:  #1e90ff;
-  --sidebar-accent-foreground:  #ffffff;
-  --sidebar-border: oklch(0.85 0 0);
-  --sidebar-ring: oklch(0.57 0.22 20.09);
+  --chart-5: oklch(0.54 0.02 220);
+
+  /* Sidebar - Vault-Tec styled */
+  --sidebar: oklch(1.00 0 0); /* #FFFFFF */
+  --sidebar-foreground: oklch(0.19 0.02 220);
+  --sidebar-primary: oklch(0.68 0.12 75); /* Vault Gold */
+  --sidebar-primary-foreground: oklch(0.15 0.02 220);
+  --sidebar-accent: oklch(0.42 0.08 230); /* Vault Blue */
+  --sidebar-accent-foreground: oklch(1.00 0 0);
+  --sidebar-border: oklch(0.92 0.005 250);
+  --sidebar-ring: oklch(0.42 0.08 230 / 0.16);
 
   --font-sans: Inter, sans-serif;
   --font-serif: Merriweather, serif;
   --font-mono: JetBrains Mono, monospace;
 
   --radius: 0.5rem;
-  
+
   --shadow-2xs: 0 1px 3px 0px oklch(0 0 0 / 0.05);
   --shadow-xs: 0 1px 3px 0px oklch(0 0 0 / 0.05);
   --shadow-sm: 0 1px 3px 0px oklch(0 0 0 / 0.10), 0 1px 2px -1px oklch(0 0 0 / 0.10);
@@ -49,42 +64,57 @@
   --shadow-lg: 0 1px 3px 0px oklch(0 0 0 / 0.10), 0 4px 6px -1px oklch(0 0 0 / 0.10);
   --shadow-xl: 0 1px 3px 0px oklch(0 0 0 / 0.10), 0 8px 10px -1px oklch(0 0 0 / 0.10);
   --shadow-2xl: 0 1px 3px 0px oklch(0 0 0 / 0.25);
-  
+
 }
 
 .dark {
-  --background: oklch(0.18 0 0);
-  --foreground: oklch(0.97 0 0);
-  --card: oklch(0.23 0 0);
-  --card-foreground: oklch(0.97 0 0);
-  --popover: oklch(0.23 0 0);
-  --popover-foreground: oklch(0.97 0 0);
-  --primary: oklch(0.57 0.22 20.09);
-  --primary-foreground:  #ffffff;
-  --secondary: oklch(0.75 0.15 83.98);
-  --secondary-foreground: oklch(0.18 0 0);
-  --muted: oklch(0.25 0 0);
-  --muted-foreground: oklch(0.79 0 0);
-  --accent: oklch(0.65 0.19 253.20);
-  --accent-foreground: oklch(1.00 0 0);
+  /* Vault-Tec Dark Mode Palette */
+  --background: oklch(0.10 0.01 220); /* #04060A */
+  --foreground: oklch(0.96 0.005 220); /* #F2F8FB */
+  --card: oklch(0.15 0.02 220); /* #071018 */
+  --card-foreground: oklch(0.96 0.005 220);
+  --popover: oklch(0.15 0.02 220);
+  --popover-foreground: oklch(0.96 0.005 220);
+  --primary: oklch(0.68 0.12 75); /* #C89E2F - Vault Gold */
+  --primary-foreground: oklch(0.15 0.02 220); /* #071018 */
+  --secondary: oklch(0.75 0.15 84);
+  --secondary-foreground: oklch(0.10 0.01 220);
+  --muted: oklch(1.00 0 0 / 0.03); /* rgba(255,255,255,0.03) */
+  --muted-foreground: oklch(0.71 0.03 220); /* #9AAFC3 */
+  --accent: oklch(0.42 0.08 230); /* #235879 - Vault Blue */
+  --accent-foreground: oklch(0.95 0.01 230); /* #EAF6FF */
   --destructive: oklch(0.66 0.23 35.40);
-  --border: oklch(0.32 0 0);
-  --input: oklch(0.25 0 0);
-  --ring: oklch(0.57 0.22 20.09);
-  --chart-1: oklch(0.49 0.24 264.40);
-  --chart-2: oklch(0.70 0.16 160.43);
+  --border: oklch(1.00 0 0 / 0.06); /* rgba(255,255,255,0.06) */
+  --input: oklch(0.15 0.02 220);
+  --ring: oklch(0.42 0.08 230 / 0.28); /* rgba(35,88,121,0.28) */
+  --placeholder: oklch(0.53 0.03 220); /* #6C7F93 */
+
+  /* Vault-Tec Dark Special Effects */
+  --surface: oklch(0.15 0.02 220); /* #071018 */
+  --metal-sheen: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.12));
+  --vault-glow: oklch(0.68 0.12 75 / 0.18); /* rgba(200,158,47,0.18) */
+  --secure-ring: oklch(0.42 0.08 230 / 0.32); /* rgba(35,88,121,0.32) */
+  --bevel: oklch(1.00 0 0 / 0.03); /* rgba(255,255,255,0.03) */
+  --elevation-1: oklch(0.00 0 0 / 0.48); /* rgba(0,0,0,0.48) */
+  --holo-accent: linear-gradient(90deg, rgba(35,88,121,0.16), rgba(200,158,47,0.08));
+
+  /* Chart Colors - Dark Mode */
+  --chart-1: oklch(0.68 0.12 75);
+  --chart-2: oklch(0.42 0.08 230);
   --chart-3: oklch(0.77 0.17 65.36);
   --chart-4: oklch(0.62 0.26 305.32);
-  --chart-5: oklch(0.64 0.25 16.51);
-  --sidebar: oklch(0.23 0 0);
-  --sidebar-foreground: oklch(0.97 0 0);
-  --sidebar-primary:  #dc143c;
-  --sidebar-primary-foreground: oklch(1.00 0 0);
-  --sidebar-accent: oklch(0.65 0.19 253.20);
-  --sidebar-accent-foreground: oklch(1.00 0 0);
-  --sidebar-border: oklch(0.32 0 0);
-  --sidebar-ring: oklch(0.57 0.22 20.09);
-  
+  --chart-5: oklch(0.71 0.03 220);
+
+  /* Sidebar - Dark Mode */
+  --sidebar: oklch(0.15 0.02 220);
+  --sidebar-foreground: oklch(0.96 0.005 220);
+  --sidebar-primary: oklch(0.68 0.12 75); /* Vault Gold */
+  --sidebar-primary-foreground: oklch(0.15 0.02 220);
+  --sidebar-accent: oklch(0.42 0.08 230); /* Vault Blue */
+  --sidebar-accent-foreground: oklch(0.95 0.01 230);
+  --sidebar-border: oklch(1.00 0 0 / 0.06);
+  --sidebar-ring: oklch(0.42 0.08 230 / 0.28);
+
   --shadow-2xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
   --shadow-xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
   --shadow-sm: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
@@ -114,6 +144,15 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-placeholder: var(--placeholder);
+
+  /* Vault-Tec Special Colors */
+  --color-surface: var(--surface);
+  --color-vault-glow: var(--vault-glow);
+  --color-secure-ring: var(--secure-ring);
+  --color-bevel: var(--bevel);
+  --color-elevation-1: var(--elevation-1);
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);

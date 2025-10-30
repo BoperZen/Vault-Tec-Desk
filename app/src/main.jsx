@@ -1,32 +1,40 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
-import { createBrowserRouter } from 'react-router-dom';
-import { RouterProvider } from 'react-router';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { UserProvider } from './context/UserContext';
 import { Layout } from './components/Layout/Layout';
-import { Home } from './components/Home/Home';
+import Dashboard from './components/Dashboard/Dashboard';
 import { PageNotFound } from './components/Home/PageNotFound';
-import TableMovies from './components/Movie/TableMovies';
-import { ListMovies } from './components/Movie/ListMovies';
-import { DetailMovie } from './components/Movie/DetailMovie';
+import TicketList from './components/Tickets/TicketList';
+
 const rutas = createBrowserRouter([
   {
     element: <Layout />,
     children: [
       // Ruta principal
-      { index: true, element: <Home /> },
+      { index: true, element: <Dashboard /> },
+      // Tickets
+      { path: "tickets", element: <TicketList /> },
+      { path: "tickets/my", element: <TicketList /> },
+      { path: "assignments", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Vista de Asignaciones - En construcción</h2></div> },
+      // Técnicos
+      { path: "technicians", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Lista de Técnicos - En construcción</h2></div> },
+      // Categorías
+      { path: "categories", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Lista de Categorías - En construcción</h2></div> },
+      // Configuración
+      { path: "settings", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Configuración - En construcción</h2></div> },
       // Ruta comodín (404)
       { path: '*', element: <PageNotFound /> },
-      //Rutas componentes
-      { path: "movie", element: <ListMovies /> },// lista peliculas
-      { path: "movie/table", element: <TableMovies /> },   // lista peliculas ADMIN       
-      { path: "movie/detail/:id", element: <DetailMovie /> }, // detalle pelicula 
     ],
   },
 ]);
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <RouterProvider router={rutas} />
+    <UserProvider>
+      <RouterProvider router={rutas} />
+    </UserProvider>
   </StrictMode>
 );
 

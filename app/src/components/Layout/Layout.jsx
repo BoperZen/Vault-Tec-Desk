@@ -1,21 +1,20 @@
-import React from "react";
-import PropTypes from "prop-types";
-import Header from "./Header";
-import { Footer } from "./Footer";
 import { Outlet } from "react-router-dom";
-
-Layout.propTypes = {
-  children: PropTypes.node.isRequired,
-};
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { AppSidebar } from "./AppSidebar";
+import Navbar from "./Navbar";
 
 export function Layout() {
   return (
-    <div className="flex min-h-screen flex-col">
-      <Header />
-      <main className="flex-1 pt-16 pb-16">
-        <Outlet />
-      </main>
-      <Footer />
-    </div>
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full">
+        <AppSidebar />
+        <div className="flex flex-1 flex-col">
+          <Navbar />
+          <main className="flex-1 overflow-y-auto bg-background p-6">
+            <Outlet />
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
   );
 }
