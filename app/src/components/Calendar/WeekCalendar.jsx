@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft,
   ChevronRight,
@@ -7,12 +8,21 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  Monitor,
+  HardDrive,
+  Network,
+  CreditCard,
+  Eye,
+  Edit,
+  MessageSquare,
+  Hash,
 } from 'lucide-react';
 import TicketService from '@/services/TicketService';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 
 const DAYS_FULL = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const DAYS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -43,7 +53,61 @@ const getStateBadgeColor = (state) => {
   return colors[state] || '';
 };
 
+// Iconos por categoría
+const getCategoryIcon = (category) => {
+  const icons = {
+    'Sistemas transaccionales': Monitor,
+    'Cajeros automaticos': CreditCard,
+    'Fraudes y alertas Vault': AlertCircle,
+    'Atención al cliente Vault': MessageSquare,
+  };
+  const IconComponent = icons[category] || HardDrive;
+  return IconComponent;
+};
+
+// Calcular SLA restante
+const calculateSLA = (creationDate, state, category) => {
+  if (state === 'Resuelto' || state === 'Cerrado') {
+    return { hoursRemaining: 0, percentage: 100, urgency: 'completed' };
+  }
+
+  const SLA_BY_CATEGORY = {
+    'Sistemas transaccionales': { answer: 1, resolution: 4 },
+    'Cajeros automaticos': { answer: 2, resolution: 6 },
+    'Fraudes y alertas Vault': { answer: 1, resolution: 2 },
+    'Atención al cliente Vault': { answer: 2, resolution: 8 },
+    'Default': { answer: 2, resolution: 8 }
+  };
+
+  const slaConfig = SLA_BY_CATEGORY[category] || SLA_BY_CATEGORY['Default'];
+  const maxHours = state === 'Pendiente' ? slaConfig.answer : slaConfig.resolution;
+  
+  const createdDate = new Date(creationDate);
+  const now = new Date();
+  const hoursElapsed = (now - createdDate) / (1000 * 60 * 60);
+  const hoursRemaining = Math.max(0, maxHours - hoursElapsed);
+  const percentage = Math.min(100, (hoursElapsed / maxHours) * 100);
+  
+  let urgency = 'normal';
+  if (percentage >= 90) urgency = 'critical';
+  else if (percentage >= 70) urgency = 'warning';
+  
+  return { hoursRemaining: Math.round(hoursRemaining * 10) / 10, percentage, urgency };
+};
+
+// Color de la barra de progreso según urgencia
+const getSLAProgressColor = (urgency) => {
+  const colors = {
+    'normal': 'bg-green-500',
+    'warning': 'bg-yellow-500',
+    'critical': 'bg-red-500',
+    'completed': 'bg-green-500',
+  };
+  return colors[urgency] || 'bg-gray-500';
+};
+
 export default function WeekCalendar() {
+  const navigate = useNavigate();
   const userId = parseInt(import.meta.env.VITE_USER_ID);
   
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -349,19 +413,51 @@ export default function WeekCalendar() {
               </CardHeader>
               <CardContent className="pb-3">
                 <div className="space-y-2">
-                  {dayTickets.slice(0, 3).map((ticket) => (
-                    <div
-                      key={ticket.idTicket}
-                      className={`p-2 rounded-md border-l-4 ${getStateColor(ticket.State)}`}
-                    >
-                      <p className="text-xs font-medium truncate">
-                        {ticket.Title}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {ticket.Category?.Name || 'Sin categoría'}
-                      </p>
-                    </div>
-                  ))}
+                  {dayTickets.slice(0, 3).map((ticket) => {
+                    const CategoryIcon = getCategoryIcon(ticket.Category);
+                    const sla = calculateSLA(ticket.DateCreated || ticket.CreationDate, ticket.State, ticket.Category);
+                    
+                    return (
+                      <div
+                        key={ticket.idTicket}
+                        className={`p-2 rounded-md border-l-4 ${getStateColor(ticket.State)} hover:shadow-md transition-shadow cursor-pointer`}
+                      >
+                        <div className="flex items-center gap-1 mb-1">
+                          <Hash className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-xs font-bold text-muted-foreground">
+                            {ticket.idTicket}
+                          </span>
+                          <CategoryIcon className="w-3 h-3 ml-auto text-muted-foreground" />
+                        </div>
+                        <p className="text-xs font-medium truncate">
+                          {ticket.Title}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {ticket.Category || 'Sin categoría'}
+                        </p>
+                        {sla.urgency !== 'completed' && (
+                          <div className="mt-1.5">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-[10px] text-muted-foreground">SLA</span>
+                              <span className={`text-[10px] font-medium ${
+                                sla.urgency === 'critical' ? 'text-red-500' :
+                                sla.urgency === 'warning' ? 'text-yellow-500' :
+                                'text-green-500'
+                              }`}>
+                                {sla.hoursRemaining}h
+                              </span>
+                            </div>
+                            <div className="w-full bg-muted rounded-full h-1">
+                              <div 
+                                className={`h-1 rounded-full transition-all ${getSLAProgressColor(sla.urgency)}`}
+                                style={{ width: `${Math.min(100, sla.percentage)}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   {dayTickets.length > 3 && (
                     <p className="text-xs text-muted-foreground text-center">
                       +{dayTickets.length - 3} más
@@ -396,44 +492,122 @@ export default function WeekCalendar() {
           <CardContent>
             {selectedDayTickets.length > 0 ? (
               <div className="space-y-3">
-                {selectedDayTickets.map((ticket) => (
-                  <div
-                    key={ticket.idTicket}
-                    className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h4 className="font-semibold">{ticket.Title}</h4>
-                          <Badge className={getStateBadgeColor(ticket.State)}>
-                            {ticket.State}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {ticket.Description}
-                        </p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Ticket className="w-3 h-3" />
-                            {ticket.Category?.Name || 'Sin categoría'}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {new Date(ticket.DateCreated).toLocaleTimeString('es-ES', { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
-                          </span>
-                          {ticket.Assign?.Technician && (
+                {selectedDayTickets.map((ticket) => {
+                  const CategoryIcon = getCategoryIcon(ticket.Category);
+                  const sla = calculateSLA(ticket.DateCreated || ticket.CreationDate, ticket.State, ticket.Category);
+                  
+                  return (
+                    <div
+                      key={ticket.idTicket}
+                      className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          {/* Header con ID, Título y Estado */}
+                          <div className="flex items-start gap-2 mb-2">
+                            <div className="flex items-center gap-2 flex-1">
+                              <div className="flex items-center gap-1 px-2 py-0.5 bg-muted rounded">
+                                <Hash className="w-3 h-3 text-muted-foreground" />
+                                <span className="text-xs font-bold">{ticket.idTicket}</span>
+                              </div>
+                              <h4 className="font-semibold">{ticket.Title}</h4>
+                            </div>
+                            <Badge className={getStateBadgeColor(ticket.State)}>
+                              {ticket.State}
+                            </Badge>
+                          </div>
+
+                          <p className="text-sm text-muted-foreground mb-3">
+                            {ticket.Description}
+                          </p>
+
+                          {/* Información de Categoría y Tiempo */}
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
                             <span className="flex items-center gap-1">
-                              Técnico: {ticket.Assign.Technician.User?.username || 'No asignado'}
+                              <CategoryIcon className="w-3 h-3" />
+                              {ticket.Category || 'Sin categoría'}
                             </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {new Date(ticket.DateCreated || ticket.CreationDate).toLocaleTimeString('es-ES', { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              })}
+                            </span>
+                            {ticket.Assign?.Technician && (
+                              <span className="flex items-center gap-1">
+                                Técnico: {ticket.Assign.Technician.User?.username || 'No asignado'}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Barra de Progreso SLA */}
+                          {sla.urgency !== 'completed' && (
+                            <div className="mb-3 p-2 bg-muted/50 rounded">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-medium text-muted-foreground">
+                                  Tiempo SLA Restante
+                                </span>
+                                <span className={`text-xs font-bold ${
+                                  sla.urgency === 'critical' ? 'text-red-500' :
+                                  sla.urgency === 'warning' ? 'text-yellow-500' :
+                                  'text-green-500'
+                                }`}>
+                                  {sla.hoursRemaining} horas
+                                </span>
+                              </div>
+                              <Progress 
+                                value={sla.percentage} 
+                                className={`h-2 ${
+                                  sla.urgency === 'critical' ? '[&>div]:bg-red-500' :
+                                  sla.urgency === 'warning' ? '[&>div]:bg-yellow-500' :
+                                  '[&>div]:bg-green-500'
+                                }`}
+                              />
+                              {sla.urgency === 'critical' && (
+                                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                  <AlertCircle className="w-3 h-3" />
+                                  ¡Urgente! SLA próximo a vencer
+                                </p>
+                              )}
+                            </div>
                           )}
+
+                          {/* Acciones Rápidas */}
+                          <div className="flex items-center gap-2 pt-2 border-t">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="gap-2"
+                              onClick={() => navigate('/tickets')}
+                            >
+                              <Eye className="w-3 h-3" />
+                              Ver Ticket
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="gap-2"
+                              disabled
+                            >
+                              <Edit className="w-3 h-3" />
+                              Cambiar Estado
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="gap-2"
+                              disabled
+                            >
+                              <MessageSquare className="w-3 h-3" />
+                              Comentar
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">

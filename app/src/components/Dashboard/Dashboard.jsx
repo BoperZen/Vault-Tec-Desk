@@ -251,6 +251,168 @@ export default function Dashboard() {
           </Card>
         </div>
 
+        {/* Additional Technician Stats */}
+        {isTechnician && !isAdmin && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Pendientes de Atender</CardTitle>
+                  <AlertCircle className="h-4 w-4 text-orange-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-orange-500">{loading ? '...' : stats.pending}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Requieren tu atención inmediata
+                  </p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Tasa de Resolución</CardTitle>
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-500">
+                    {loading ? '...' : stats.myTickets > 0 ? `${Math.round((stats.resolved / stats.myTickets) * 100)}%` : '0%'}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    De tus tickets asignados
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Chart and Info Section for Technicians */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              {/* Chart Card */}
+              <Card className="md:col-span-1">
+                <CardHeader>
+                  <CardTitle className="text-lg">Mis Tickets Asignados</CardTitle>
+                  <CardDescription>Distribución por estado</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* Resueltos */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                          <span className="font-medium">Resueltos</span>
+                        </div>
+                        <span className="text-muted-foreground">{loading ? '...' : stats.resolved}</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2.5">
+                        <div 
+                          className="bg-green-500 h-2.5 rounded-full transition-all duration-500"
+                          style={{ width: loading ? '0%' : `${stats.myTickets > 0 ? (stats.resolved / stats.myTickets) * 100 : 0}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* En Proceso */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                          <span className="font-medium">En Proceso</span>
+                        </div>
+                        <span className="text-muted-foreground">{loading ? '...' : stats.inProgress}</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2.5">
+                        <div 
+                          className="bg-yellow-500 h-2.5 rounded-full transition-all duration-500"
+                          style={{ width: loading ? '0%' : `${stats.myTickets > 0 ? (stats.inProgress / stats.myTickets) * 100 : 0}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Pendientes */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                          <span className="font-medium">Pendientes</span>
+                        </div>
+                        <span className="text-muted-foreground">{loading ? '...' : stats.pending}</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2.5">
+                        <div 
+                          className="bg-orange-500 h-2.5 rounded-full transition-all duration-500"
+                          style={{ width: loading ? '0%' : `${stats.myTickets > 0 ? (stats.pending / stats.myTickets) * 100 : 0}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Total */}
+                    <div className="pt-4 border-t border-border/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold">Total Asignados</span>
+                        <span className="text-2xl font-bold text-primary">{loading ? '...' : stats.myTickets}</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Info Card */}
+              <Card className="md:col-span-1 bg-gradient-to-br from-primary/5 via-accent/5 to-background">
+                <CardHeader>
+                  <CardTitle className="text-lg">Mi Rendimiento</CardTitle>
+                  <CardDescription>Métricas de tu trabajo</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-border/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Completados</p>
+                        <p className="text-xs text-muted-foreground">Tickets resueltos</p>
+                      </div>
+                    </div>
+                    <span className="text-lg font-bold text-green-500">
+                      {loading ? '...' : stats.resolved}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-border/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-yellow-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">En Atención</p>
+                        <p className="text-xs text-muted-foreground">Trabajando ahora</p>
+                      </div>
+                    </div>
+                    <span className="text-lg font-bold text-yellow-500">
+                      {loading ? '...' : stats.inProgress}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-border/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                        <AlertCircle className="w-5 h-5 text-orange-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Por Atender</p>
+                        <p className="text-xs text-muted-foreground">Esperando inicio</p>
+                      </div>
+                    </div>
+                    <span className="text-lg font-bold text-orange-500">
+                      {loading ? '...' : stats.pending}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
+
         {/* Additional Admin Stats */}
         {isAdmin && (
           <>

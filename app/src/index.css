@@ -224,5 +224,15 @@
   *::-webkit-scrollbar-thumb {
     background: transparent;
   }
+  
+  /* Scrollbar invisible para el acordeón de tickets */
+  .subtle-scroll {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+  
+  .subtle-scroll::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
 
 }

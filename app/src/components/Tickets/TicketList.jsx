@@ -13,93 +13,29 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  Filter,
 } from 'lucide-react';
 import { useRole } from '@/hooks/use-role';
 import { useLocation } from 'react-router-dom';
 import TicketService from '@/services/TicketService';
+import TechnicianService from '@/services/TechnicianService';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { StateProgress } from '@/components/ui/state-progress';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-
-// Mock data - reemplazar con datos de la API
-const mockTickets = [
-  {
-    idTicket: 1,
-    Title: 'Error en módulo de facturación',
-    Description: 'El sistema no genera las facturas correctamente y muestra errores de cálculo en los totales.',
-    DateOfEntry: '2025-10-28T10:30:00',
-    State: 'En Proceso',
-    Category: 'Software',
-    User: { idUser: 2, Username: 'Juan Pérez', Email: 'juan@example.com' },
-    Priority: 'Alta',
-    SLAProgress: 65,
-    SLAHoursRemaining: 18,
-    StateRecords: [
-      { idStateRecord: 1, State: 'Abierto', DateOfChange: '2025-10-28T10:30:00', Observation: 'Ticket creado', Images: [] },
-      { idStateRecord: 2, State: 'Asignado', DateOfChange: '2025-10-28T11:00:00', Observation: 'Asignado a técnico', Images: [] },
-      { idStateRecord: 3, State: 'En Proceso', DateOfChange: '2025-10-28T14:30:00', Observation: 'Investigando el problema', Images: [{ idImage: 1, Image: 'error_screenshot.png' }] },
-    ],
-    Assign: {
-      DateOfAssign: '2025-10-28T11:00:00',
-      Observation: 'Asignación automática por especialidad',
-      Type: 'R-1',
-      Technician: { idTechnician: 1, Username: 'Carlos Tech', Email: 'carlos@vaulttec.com' }
-    }
-  },
-  {
-    idTicket: 2,
-    Title: 'Solicitud de nuevo equipo',
-    Description: 'Necesito un equipo de cómputo para el nuevo empleado del departamento de ventas.',
-    DateOfEntry: '2025-10-29T09:15:00',
-    State: 'Pendiente',
-    Category: 'Hardware',
-    User: { idUser: 3, Username: 'María García', Email: 'maria@example.com' },
-    Priority: 'Media',
-    SLAProgress: 30,
-    SLAHoursRemaining: 42,
-    StateRecords: [
-      { idStateRecord: 4, State: 'Pendiente', DateOfChange: '2025-10-29T09:15:00', Observation: 'Ticket creado, esperando asignación', Images: [] },
-    ]
-  },
-  {
-    idTicket: 3,
-    Title: 'Actualización de sistema operativo',
-    Description: 'Es necesario actualizar el sistema operativo de todas las estaciones de trabajo del piso 3.',
-    DateOfEntry: '2025-10-27T08:00:00',
-    State: 'Cerrado',
-    Category: 'Infraestructura',
-    User: { idUser: 4, Username: 'Pedro Admin', Email: 'pedro@example.com' },
-    Priority: 'Baja',
-    SLAProgress: 100,
-    SLAHoursRemaining: 0,
-    StateRecords: [
-      { idStateRecord: 5, State: 'Abierto', DateOfChange: '2025-10-27T08:00:00', Observation: 'Ticket creado', Images: [] },
-      { idStateRecord: 6, State: 'Asignado', DateOfChange: '2025-10-27T09:00:00', Observation: 'Asignado a equipo', Images: [] },
-      { idStateRecord: 7, State: 'En Proceso', DateOfChange: '2025-10-27T10:30:00', Observation: 'Actualizando equipos', Images: [] },
-      { idStateRecord: 8, State: 'Resuelto', DateOfChange: '2025-10-28T16:00:00', Observation: 'Actualización completa', Images: [{ idImage: 2, Image: 'completion.png' }] },
-      { idStateRecord: 9, State: 'Cerrado', DateOfChange: '2025-10-29T08:00:00', Observation: 'Confirmado por usuario', Images: [] },
-    ],
-    Assign: {
-      DateOfAssign: '2025-10-27T09:00:00',
-      Observation: 'Asignado a equipo de infraestructura',
-      Type: 'Manual',
-      Technician: { idTechnician: 2, Username: 'Ana Tech', Email: 'ana@vaulttec.com' }
-    },
-    ServiceReview: {
-      idServiceReview: 1,
-      Score: 5,
-      Comment: 'Excelente servicio, muy profesional',
-      DateOfReview: '2025-10-29T08:30:00'
-    }
-  },
-];
 
 const getStateColor = (state) => {
   const colors = {
@@ -131,15 +67,30 @@ export default function TicketList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedTicket, setExpandedTicket] = useState(null);
+  const [technicians, setTechnicians] = useState([]);
+  const [filterType, setFilterType] = useState('all'); // 'all' o 'assigned'
+  const [selectedTechnician, setSelectedTechnician] = useState('all');
 
   useEffect(() => {
     loadTickets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
+  }, [location.pathname, filterType, selectedTechnician]);
 
+  /**
+   * Calcula el tiempo restante de SLA y el porcentaje de progreso para un ticket
+   * Basado en:
+   * - SLA de Resolución = Fecha creación + tiempo máximo de resolución
+   * - Se calcula el tiempo transcurrido desde la creación hasta ahora
+   * - Se compara con el tiempo máximo de resolución permitido
+   * 
+   * @param {string} creationDate - Fecha de creación del ticket
+   * @param {string} state - Estado actual del ticket
+   * @param {string} category - Categoría del ticket
+   * @returns {object} - Objeto con hoursRemaining (horas restantes hasta SLA) y progress (porcentaje de tiempo consumido)
+   */
   const calculateSLA = (creationDate, state, category) => {
     // SLA por categoría basado en la tabla real del sistema
-    // Formato: [MaxAnswerTime (Respuesta), MaxResolutionTime (Resolución)]
+    // MaxResolutionTime en horas
     const SLA_BY_CATEGORY = {
       'Sistemas transaccionales': { answer: 1, resolution: 4 },      // idSLA 1
       'Cajeros automaticos': { answer: 2, resolution: 6 },            // idSLA 2
@@ -148,39 +99,74 @@ export default function TicketList() {
       'Default': { answer: 2, resolution: 8 }                         // Por defecto
     };
     
-    // Obtener el SLA según la categoría, o usar el default
-    const slaConfig = SLA_BY_CATEGORY[category] || SLA_BY_CATEGORY['Default'];
-    
-    // Usar tiempo de resolución como métrica principal
-    const SLA_HOURS = slaConfig.resolution;
-    
-    const now = new Date();
-    const created = new Date(creationDate);
-    const hoursElapsed = (now - created) / (1000 * 60 * 60);
-    const hoursRemaining = Math.max(0, SLA_HOURS - hoursElapsed);
-    const progress = Math.min(100, (hoursElapsed / SLA_HOURS) * 100);
-    
-    // Si está cerrado o resuelto, SLA al 100%
+    // Si está cerrado o resuelto, mostrar que ya cumplió el ciclo
     if (state === 'Cerrado' || state === 'Resuelto') {
       return { hoursRemaining: 0, progress: 100 };
     }
     
+    // Validar que la fecha de creación existe y es válida
+    if (!creationDate) {
+      return { hoursRemaining: 0, progress: 0 };
+    }
+    
+    // Obtener el SLA según la categoría
+    const slaConfig = SLA_BY_CATEGORY[category] || SLA_BY_CATEGORY['Default'];
+    
+    // Tiempo máximo de resolución en horas
+    const maxResolutionHours = slaConfig.resolution;
+    
+    // Calcular tiempo actual
+    const now = new Date();
+    const created = new Date(creationDate);
+    
+    // Verificar si la fecha es válida
+    if (isNaN(created.getTime())) {
+      return { hoursRemaining: 0, progress: 0 };
+    }
+    
+    // Calcular SLA de Resolución = Fecha creación + tiempo máximo de resolución
+    const slaResolutionDate = new Date(created.getTime() + (maxResolutionHours * 60 * 60 * 1000));
+    
+    // Calcular horas restantes hasta el SLA (negativo si ya venció)
+    const hoursRemaining = (slaResolutionDate - now) / (1000 * 60 * 60);
+    
+    // Calcular progreso: % de tiempo RESTANTE (inverso)
+    // 100% = recién creado (todo el tiempo disponible)
+    // 50% = mitad del tiempo
+    // 0% = se acabó el tiempo
+    // Negativo = vencido
+    const progress = Math.round((hoursRemaining / maxResolutionHours) * 100);
+    
     return { 
       hoursRemaining: Math.round(hoursRemaining * 10) / 10, // Redondear a 1 decimal
-      progress: Math.round(progress) 
+      progress: Math.max(0, progress) // No mostrar negativos, mínimo 0%
     };
   };
 
+  /**
+   * Carga los tickets desde la API y aplica filtros según el rol del usuario
+   * - Admin: Aplica filtros de tipo (asignados/todos) y técnico específico
+   * - Técnico: Solo muestra sus tickets asignados
+   * - Cliente: Solo muestra sus propios tickets
+   */
   const loadTickets = async () => {
     try {
       setLoading(true);
-      const response = await TicketService.getTickets();
+      
+      const promises = [TicketService.getTickets()];
+      
+      // Cargar técnicos si es admin
+      if (role === 3) {
+        promises.push(TechnicianService.getTechnicians());
+      }
+      
+      const responses = await Promise.all(promises);
+      const response = responses[0];
+      
       if (response.data.success) {
         let allTickets = response.data.data;
         
-        // Filtrar tickets según el rol y la ruta
-        const isAssignedRoute = location.pathname === '/tickets/assigned';
-        
+        // Filtrar tickets según el rol
         if (role === 1) {
           // Técnicos: Ver solo sus tickets asignados (siempre)
           allTickets = allTickets.filter(
@@ -191,27 +177,70 @@ export default function TicketList() {
           allTickets = allTickets.filter(
             ticket => parseInt(ticket.User?.idUser) === parseInt(import.meta.env.VITE_USER_ID)
           );
-        } else if (role === 3 && isAssignedRoute) {
-          // Admin en "Tickets Asignados": Ver todos los tickets que tienen asignación
-          allTickets = allTickets.filter(ticket => ticket.Assign !== null);
+        } else if (role === 3) {
+          // Admin: Aplicar filtros
+          
+          // Filtro por tipo (asignado o todos)
+          if (filterType === 'assigned') {
+            allTickets = allTickets.filter(ticket => {
+              try {
+                return ticket.Assign && 
+                       ticket.Assign.Technician && 
+                       ticket.Assign.Technician.idTechnician;
+              } catch (error) {
+                console.error('Error filtrando ticket asignado:', ticket.idTicket, error);
+                return false;
+              }
+            });
+          }
+          
+          // Filtro por técnico específico
+          if (selectedTechnician !== 'all') {
+            const techId = parseInt(selectedTechnician);
+            allTickets = allTickets.filter(ticket => {
+              try {
+                const ticketTechId = parseInt(ticket.Assign?.Technician?.idTechnician);
+                return !isNaN(ticketTechId) && ticketTechId === techId;
+              } catch (error) {
+                console.error('Error filtrando por técnico:', ticket.idTicket, error);
+                return false;
+              }
+            });
+          }
         }
-        // role === 3 en /tickets: Ver todos los tickets (sin filtro)
         
         // Agregar cálculos de SLA a cada ticket
         const ticketsWithSLA = allTickets.map(ticket => {
-          const sla = calculateSLA(ticket.CreationDate, ticket.State, ticket.Category);
-          return {
-            ...ticket,
-            SLAHoursRemaining: sla.hoursRemaining,
-            SLAProgress: sla.progress
-          };
+          try {
+            const sla = calculateSLA(ticket.CreationDate, ticket.State, ticket.Category);
+            return {
+              ...ticket,
+              SLAHoursRemaining: sla.hoursRemaining,
+              SLAProgress: sla.progress
+            };
+          } catch (error) {
+            console.error('Error calculando SLA para ticket:', ticket.idTicket, error);
+            return {
+              ...ticket,
+              SLAHoursRemaining: 0,
+              SLAProgress: 0
+            };
+          }
         });
+        
         setTickets(ticketsWithSLA);
+        
+        // Guardar técnicos si es admin
+        if (role === 3 && responses[1]?.data.success) {
+          setTechnicians(responses[1].data.data);
+        }
       } else {
         setError('Error al cargar los tickets');
       }
     } catch (err) {
       console.error('Error loading tickets:', err);
+      console.error('Error details:', err.message);
+      console.error('Error stack:', err.stack);
       setError('Error al conectar con el servidor');
     } finally {
       setLoading(false);
@@ -273,42 +302,87 @@ export default function TicketList() {
   return (
     <div className="space-y-6 container mx-auto px-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mt-4 flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight mt-4">
+          <h1 className="text-3xl font-bold tracking-tight">
             {role === 1 
               ? 'Mis Tickets Asignados' 
-              : location.pathname === '/tickets/assigned'
+              : role === 3 && filterType === 'assigned'
               ? 'Tickets Asignados'
-              : location.pathname === '/tickets/my'
-              ? 'Mis Tickets'
               : 'Todos los Tickets'}
           </h1>
           <p className="text-muted-foreground mt-1">
             {role === 1 
               ? 'Tickets asignados a ti' 
-              : location.pathname === '/tickets/assigned'
-              ? 'Todos los tickets asignados a técnicos'
-              : location.pathname === '/tickets/my'
-              ? 'Tus tickets creados'
+              : role === 3 && filterType === 'assigned'
+              ? 'Tickets asignados a técnicos'
               : 'Gestiona y visualiza todos los tickets del sistema'}
           </p>
         </div>
-        <Badge variant="outline" className="text-sm px-4 py-2">
-          {tickets.length} tickets
-        </Badge>
+        
+        <div className="flex items-center gap-3">
+          {/* Filtros (solo para admin) */}
+          {role === 3 && (
+            <>
+              <Filter className="w-4 h-4 text-muted-foreground" />
+              
+              {/* Filtro de tipo */}
+              <Select 
+                value={filterType} 
+                onValueChange={setFilterType}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los Tickets</SelectItem>
+                  <SelectItem value="assigned">Tickets Asignados</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Filtro de técnico */}
+              <Select 
+                value={selectedTechnician} 
+                onValueChange={setSelectedTechnician}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Seleccionar técnico" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los técnicos</SelectItem>
+                  {technicians.map((tech) => (
+                    <SelectItem key={tech.idTechnician} value={tech.idTechnician.toString()}>
+                      {tech.Username}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
+          
+          <Badge variant="outline" className="text-sm px-4 py-2">
+            {tickets.length} tickets
+          </Badge>
+        </div>
       </div>
 
       {/* Tickets List with Collapsible */}
       <div className="space-y-4 mb-5">
-        {tickets.map((ticket) => (
-          <Collapsible
-            key={ticket.idTicket}
-            open={expandedTicket === ticket.idTicket}
-            onOpenChange={() => setExpandedTicket(expandedTicket === ticket.idTicket ? null : ticket.idTicket)}
-            className="w-full"
-          >
-            <Card className="overflow-hidden hover:shadow-lg hover:shadow-vault-glow/20 transition-all duration-300">
+        {tickets.map((ticket) => {
+          const isOpen = expandedTicket === ticket.idTicket;
+          return (
+            <Collapsible
+              key={ticket.idTicket}
+              open={isOpen}
+              onOpenChange={(open) => {
+                setExpandedTicket(open ? ticket.idTicket : null);
+              }}
+              className="w-full"
+            >
+            <Card 
+              id={`ticket-${ticket.idTicket}`}
+              className="overflow-hidden hover:shadow-lg hover:shadow-vault-glow/20 transition-all duration-300"
+            >
               <CollapsibleTrigger className="w-full text-left">
                 <CardHeader className="pb-4 cursor-pointer hover:bg-muted/50 transition-colors py-5">
                   <div className="flex items-start justify-between gap-4">
@@ -326,10 +400,21 @@ export default function TicketList() {
                         </Badge>
                         <Badge 
                           variant="outline" 
-                          className={`text-xs ${ticket.SLAHoursRemaining <= 0.5 ? 'border-destructive/50 text-destructive' : ticket.SLAHoursRemaining <= 2 ? 'border-yellow-500/50 text-yellow-600' : 'border-green-500/50 text-green-600'}`}
+                          className={`text-xs ${
+                            ticket.SLAHoursRemaining < 0 
+                              ? 'border-destructive/50 text-destructive bg-destructive/10' 
+                              : ticket.SLAHoursRemaining <= 0.5 
+                                ? 'border-destructive/50 text-destructive' 
+                                : ticket.SLAHoursRemaining <= 2 
+                                  ? 'border-yellow-500/50 text-yellow-600' 
+                                  : 'border-green-500/50 text-green-600'
+                          }`}
                         >
                           <Clock className="w-3 h-3 mr-1" />
-                          {ticket.SLAHoursRemaining}h restantes
+                          {ticket.SLAHoursRemaining < 0 
+                            ? `${Math.abs(ticket.SLAHoursRemaining)}h vencido` 
+                            : `${ticket.SLAHoursRemaining}h restantes`
+                          }
                         </Badge>
                       </div>
                       
@@ -421,14 +506,37 @@ export default function TicketList() {
                             <p className="text-[10px] text-muted-foreground">Cambios</p>
                           </div>
                           <div className="text-center p-2 rounded-lg bg-background/50">
-                            <p className="text-xl font-bold text-accent">{ticket.SLAProgress}%</p>
-                            <p className="text-[10px] text-muted-foreground">SLA</p>
+                            <p className={`text-xl font-bold ${
+                              ticket.SLAHoursRemaining < 0 
+                                ? 'text-destructive' 
+                                : ticket.SLAHoursRemaining <= 2 
+                                  ? 'text-yellow-500' 
+                                  : 'text-green-500'
+                            }`}>
+                              {ticket.SLAHoursRemaining < 0 
+                                ? `${Math.abs(ticket.SLAHoursRemaining)}h` 
+                                : `${ticket.SLAHoursRemaining}h`
+                              }
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {ticket.SLAHoursRemaining < 0 ? 'Vencido' : 'Restantes'}
+                            </p>
                           </div>
                           <div className="text-center p-2 rounded-lg bg-background/50">
                             <p className="text-xl font-bold text-primary">
-                              {Math.floor((new Date() - new Date(ticket.CreationDate)) / (1000 * 60 * 60 * 24))}d
+                              {(() => {
+                                // Calcular fecha límite SLA
+                                const created = new Date(ticket.CreationDate);
+                                const slaHours = ticket.Category === 'Sistemas transaccionales' ? 4
+                                  : ticket.Category === 'Cajeros automaticos' ? 6
+                                  : ticket.Category === 'Fraudes y alertas Vault' ? 2
+                                  : ticket.Category === 'Atención al cliente Vault' ? 8
+                                  : 8;
+                                const deadline = new Date(created.getTime() + (slaHours * 60 * 60 * 1000));
+                                return deadline.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+                              })()}
                             </p>
-                            <p className="text-[10px] text-muted-foreground">Días</p>
+                            <p className="text-[10px] text-muted-foreground">Límite</p>
                           </div>
                         </div>
                       </CardContent>
@@ -512,7 +620,8 @@ export default function TicketList() {
               </CollapsibleContent>
             </Card>
           </Collapsible>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

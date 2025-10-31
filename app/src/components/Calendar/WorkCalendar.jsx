@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Calendar as CalendarIcon, 
   ChevronLeft,
@@ -10,6 +11,7 @@ import {
   CheckCircle2,
   Loader2,
   Filter,
+  Eye,
 } from 'lucide-react';
 import { useRole } from '@/hooks/use-role';
 import TicketService from '@/services/TicketService';
@@ -44,6 +46,7 @@ const getStateColor = (state) => {
 };
 
 export default function WorkCalendar() {
+  const navigate = useNavigate();
   const { isAdmin } = useRole();
   const technicianId = import.meta.env.VITE_TECHNICIAN_ID;
   
@@ -54,11 +57,12 @@ export default function WorkCalendar() {
   const [selectedTechnician, setSelectedTechnician] = useState(isAdmin ? 'all' : technicianId);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [filterType, setFilterType] = useState('all'); // 'all' o 'assigned'
 
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTechnician]);
+  }, [selectedTechnician, filterType]);
 
   const loadData = async () => {
     try {
@@ -77,11 +81,18 @@ export default function WorkCalendar() {
       if (ticketResponse.data.success) {
         let allTickets = ticketResponse.data.data;
         
+        // Filtrar por tipo (todos o solo asignados)
+        if (filterType === 'assigned') {
+          allTickets = allTickets.filter(ticket => ticket.Assign !== null);
+        }
+        
         // Filtrar tickets según el técnico seleccionado
         if (selectedTechnician !== 'all') {
-          allTickets = allTickets.filter(
-            ticket => ticket.Assign?.Technician?.idTechnician === selectedTechnician
-          );
+          const techId = parseInt(selectedTechnician);
+          allTickets = allTickets.filter(ticket => {
+            const ticketTechId = ticket.Assign?.Technician?.idTechnician;
+            return ticketTechId === techId;
+          });
         }
         
         setTickets(allTickets);
@@ -90,7 +101,6 @@ export default function WorkCalendar() {
       if (isAdmin && responses[1]?.data.success) {
         setTechnicians(responses[1].data.data);
       }
-      
     } catch (err) {
       console.error('Error loading calendar data:', err);
       setError('Error al cargar los datos del calendario');
@@ -235,7 +245,7 @@ export default function WorkCalendar() {
   }
 
   return (
-    <div className="space-y-6 container mx-auto px-4">
+    <div className="space-y-6 container mx-auto px-4 mb-5">
       {/* Header */}
       <div className="flex items-center justify-between mt-4 flex-wrap gap-4">
         <div>
@@ -245,11 +255,30 @@ export default function WorkCalendar() {
           </p>
         </div>
         
-        {/* Filtro de técnico (solo para admin) */}
+        {/* Filtros (solo para admin) */}
         {isAdmin && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Filter className="w-4 h-4 text-muted-foreground" />
-            <Select value={selectedTechnician} onValueChange={setSelectedTechnician}>
+            
+            {/* Filtro de tipo */}
+            <Select 
+              value={filterType} 
+              onValueChange={setFilterType}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Tipo de tickets" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los Tickets</SelectItem>
+                <SelectItem value="assigned">Tickets Asignados</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Filtro de técnico */}
+            <Select 
+              value={selectedTechnician} 
+              onValueChange={setSelectedTechnician}
+            >
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Seleccionar técnico" />
               </SelectTrigger>
@@ -492,6 +521,16 @@ export default function WorkCalendar() {
                             <span className="text-xs truncate">{ticket.Assign.Technician.Username}</span>
                           </div>
                         )}
+
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="w-full gap-2 mt-2"
+                          onClick={() => navigate('/tickets')}
+                        >
+                          <Eye className="w-3 h-3" />
+                          Ver Ticket
+                        </Button>
                       </CardContent>
                     </Card>
                   ))}

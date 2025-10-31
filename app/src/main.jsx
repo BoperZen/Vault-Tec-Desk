@@ -9,6 +9,7 @@ import { PageNotFound } from './components/Home/PageNotFound';
 import TicketList from './components/Tickets/TicketList';
 import TechnicianList from './components/Technicians/TechnicianList';
 import CalendarView from './components/Calendar/CalendarView';
+import CategoryList from './components/Categories/CategoryList';
 
 const rutas = createBrowserRouter([
   {
@@ -25,8 +26,8 @@ const rutas = createBrowserRouter([
       { path: "technicians", element: <TechnicianList /> },
       // Calendario (semanal para clientes, mensual para admins/técnicos)
       { path: "calendar", element: <CalendarView /> },
-      // Categorías
-      { path: "categories", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Lista de Categorías - En construcción</h2></div> },
+      // Categorías (solo admins)
+      { path: "categories", element: <CategoryList /> },
       // Configuración
       { path: "settings", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Configuración - En construcción</h2></div> },
       // Ruta comodín (404)
