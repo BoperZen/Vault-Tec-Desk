@@ -9,6 +9,7 @@ import {
   Trash2,
   Loader2,
   Clock,
+  ChevronDown,
 } from 'lucide-react';
 import { useRole } from '@/hooks/use-role';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +20,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 export default function CategoryList() {
   const { isAdmin } = useRole();
@@ -26,6 +32,7 @@ export default function CategoryList() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [expandedCategory, setExpandedCategory] = useState(null);
 
   useEffect(() => {
     // Solo admins pueden ver categorías
@@ -184,97 +191,132 @@ export default function CategoryList() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {processedCategories.map((category) => (
-            <Card 
+            <Collapsible
               key={category.idCategory}
-              className="group hover:shadow-lg transition-all duration-300 border-border/50 hover:border-primary/50"
+              open={expandedCategory === category.idCategory}
+              onOpenChange={() => setExpandedCategory(expandedCategory === category.idCategory ? null : category.idCategory)}
             >
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-xl mb-2 flex items-center gap-2">
-                      <FolderKanban className="w-5 h-5 text-primary" />
-                      {category.Categoryname}
-                    </CardTitle>
-                    <CardDescription className="flex items-center gap-2 text-xs">
-                      <Clock className="w-3 h-3" />
-                      <span>Respuesta: {category.MaxAnswerTime || 'N/A'}</span>
-                      <span>• Resolución: {category.MaxResolutionTime || 'N/A'}</span>
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                {/* Labels Section */}
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Tag className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Etiquetas ({category.LabelsArray.length})
-                    </span>
-                  </div>
-                  {category.LabelsArray.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {category.LabelsArray.map((label, index) => (
-                        <Badge 
-                          key={`${category.idCategory}-label-${index}`}
-                          variant="secondary"
-                          className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
-                        >
-                          {label}
+              <Card className="group hover:shadow-lg transition-all duration-300 border-border/50 hover:border-primary/50">
+                <CollapsibleTrigger className="w-full">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1 text-left">
+                        <FolderKanban className="w-4 h-4 text-primary flex-shrink-0" />
+                        <CardTitle className="text-base font-semibold truncate">
+                          {category.Categoryname}
+                        </CardTitle>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Badge variant="outline" className="text-xs">
+                          {category.LabelsArray.length} <Tag className="w-3 h-3 ml-1" />
                         </Badge>
-                      ))}
+                        <Badge variant="outline" className="text-xs">
+                          {category.SpecialtiesArray.length} <Briefcase className="w-3 h-3 ml-1" />
+                        </Badge>
+                        <ChevronDown
+                          className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${
+                            expandedCategory === category.idCategory ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground italic">
-                      Sin etiquetas asignadas
-                    </p>
-                  )}
-                </div>
+                    <CardDescription className="flex items-center gap-2 text-xs mt-2">
+                      <Clock className="w-3 h-3" />
+                      <span>Resp: {category.MaxAnswerTime || 'N/A'}</span>
+                      <span>• Resol: {category.MaxResolutionTime || 'N/A'}</span>
+                    </CardDescription>
+                  </CardHeader>
+                </CollapsibleTrigger>
 
-                <Separator />
+                <CollapsibleContent>
+                  <CardContent className="space-y-4 pt-0">
+                    <Separator />
 
-                {/* Specialties Section */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Briefcase className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Especialidades Requeridas ({category.SpecialtiesArray.length})
-                    </span>
-                  </div>
-                  {category.SpecialtiesArray.length > 0 ? (
-                    <div className="space-y-2">
-                      {category.SpecialtiesArray.map((specialty, index) => (
-                        <div
-                          key={`${category.idCategory}-specialty-${index}`}
-                          className="flex items-center gap-2 p-2 rounded-md bg-gradient-to-r from-accent/5 to-transparent border border-accent/20"
-                        >
-                          <div className="w-2 h-2 rounded-full bg-accent"></div>
-                          <span className="text-sm font-medium">{specialty}</span>
+                    {/* Labels Section */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Tag className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Etiquetas
+                        </span>
+                      </div>
+                      {category.LabelsArray.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {category.LabelsArray.map((label, index) => (
+                            <Badge 
+                              key={`${category.idCategory}-label-${index}`}
+                              variant="secondary"
+                              className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+                            >
+                              {label}
+                            </Badge>
+                          ))}
                         </div>
-                      ))}
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">
+                          Sin etiquetas asignadas
+                        </p>
+                      )}
                     </div>
-                  ) : (
-                    <div className="text-center py-4 border-2 border-dashed border-border/50 rounded-lg">
-                      <Briefcase className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
-                      <p className="text-xs text-muted-foreground">
-                        Sin especialidades requeridas
-                      </p>
+
+                    <Separator />
+
+                    {/* Specialties Section */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Briefcase className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Especialidades Requeridas
+                        </span>
+                      </div>
+                      {category.SpecialtiesArray.length > 0 ? (
+                        <div className="space-y-2">
+                          {category.SpecialtiesArray.map((specialty, index) => (
+                            <div
+                              key={`${category.idCategory}-specialty-${index}`}
+                              className="flex items-center gap-2 p-2 rounded-md bg-gradient-to-r from-accent/5 to-transparent border border-accent/20"
+                            >
+                              <div className="w-2 h-2 rounded-full bg-accent"></div>
+                              <span className="text-sm font-medium">{specialty}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 border-2 border-dashed border-border/50 rounded-lg">
+                          <Briefcase className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+                          <p className="text-xs text-muted-foreground">
+                            Sin especialidades requeridas
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+
+                    {/* Action Buttons */}
+                    <Separator />
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="flex-1 hover:bg-primary/10 hover:text-primary"
+                      >
+                        <Edit className="w-3 h-3 mr-2" />
+                        Editar
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="flex-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="w-3 h-3 mr-2" />
+                        Eliminar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           ))}
         </div>
       )}

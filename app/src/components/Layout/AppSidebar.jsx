@@ -292,7 +292,7 @@ export function AppSidebar() {
                           }`}>
                             {/* Link que lleva a /tickets */}
                             <Link to={item.url} className="flex items-center flex-1 min-w-0">
-                              <item.icon className="w-6 h-6 shrink-0 mr-3" />
+                              <item.icon className="w-4 h-4 shrink-0 mr-3" />
                               <span className="font-medium text-sm flex-1">{item.title}</span>
                             </Link>
                             {/* Botón del acordeón separado */}
@@ -323,7 +323,7 @@ export function AppSidebar() {
                             }`}
                           >
                             <Link to={item.url}>
-                              <item.icon className="w-6 h-6 shrink-0 mr-3" />
+                              <item.icon className="w-4 h-4 shrink-0 mr-3" />
                             </Link>
                           </SidebarMenuButton>
                         )}
@@ -385,7 +385,7 @@ export function AppSidebar() {
                       }`}
                     >
                       <Link to={item.url} className="flex items-center">
-                        <item.icon className="w-6 h-6 shrink-0 mr-3" />
+                        <item.icon className="w-4 h-4 shrink-0 mr-3" />
                         <span className="font-medium text-sm flex-1">{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
