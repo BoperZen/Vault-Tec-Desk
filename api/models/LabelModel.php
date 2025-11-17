@@ -7,7 +7,6 @@ class LabelModel
     {
         $this->enlace = new MySqlConnect();
     }
-    /*
     public function all()
     {
         // Consulta SQL
@@ -31,7 +30,7 @@ class LabelModel
         
         // Retornar la primera fila o null si no existe
         return isset($vResultado[0]) ? $vResultado[0] : null;
-    }*/
+    }
 
     public function getbyCat($idCategory)
     {

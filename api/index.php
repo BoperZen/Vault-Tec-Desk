@@ -32,6 +32,7 @@ require_once "models/ImageModel.php";
 require_once "models/StateModel.php";
 require_once "models/LabelModel.php";
 require_once "models/SpecialtyModel.php";
+require_once "models/SLAModel.php";
 require_once "models/CategoryModel.php";
 require_once "models/TechnicianModel.php";
 require_once "models/AssignModel.php";

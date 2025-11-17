@@ -117,4 +117,16 @@ class MySqlConnect {
 			handleException($e);
 		}
 	}
+
+	/**
+	 * Escapar una cadena para prevenir inyección SQL
+	 * @param $string - string a escapar
+	 * @return string - string escapada
+	 */
+	public function escapeString($string) {
+		$this->connect();
+		$escaped = $this->link->real_escape_string($string);
+		$this->link->close();
+		return $escaped;
+	}
 }

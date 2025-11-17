@@ -7,6 +7,7 @@ import { Layout } from './components/Layout/Layout';
 import Dashboard from './components/Dashboard/Dashboard';
 import { PageNotFound } from './components/Home/PageNotFound';
 import TicketList from './components/Tickets/TicketList';
+import UpkeepTicket from './components/Tickets/UpkeepTicket';
 import TechnicianList from './components/Technicians/TechnicianList';
 import CalendarView from './components/Calendar/CalendarView';
 import CategoryList from './components/Categories/CategoryList';
@@ -21,6 +22,8 @@ const rutas = createBrowserRouter([
       { path: "tickets", element: <TicketList /> },
       { path: "tickets/my", element: <TicketList /> },
       { path: "tickets/assigned", element: <TicketList /> },
+      { path: "tickets/create", element: <UpkeepTicket /> },
+      { path: "tickets/edit/:id", element: <UpkeepTicket /> },
       { path: "assignments", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Vista de Asignaciones - En construcción</h2></div> },
       // Técnicos (solo admins)
       { path: "technicians", element: <TechnicianList /> },

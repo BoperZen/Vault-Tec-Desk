@@ -8,74 +8,75 @@ class TechnicianModel
         $this->enlace = new MySqlConnect();
     }
 
+    /**
+     * Listar todos los técnicos
+     * @return array - Lista de técnicos con sus relaciones
+     */
     public function all()
     {
-        $vSql = <<<'SQL'
-    SELECT
-     t.idTechnician, t.WorkLoad, t.Availability,
-	 u.idUser, u.Username, u.Email, u.LastSesion, u.idRol,
-     GROUP_CONCAT(DISTINCT s.Description ORDER BY s.Description SEPARATOR '|') AS Specialties
-	 FROM Technician t
-     LEFT JOIN `User` u ON u.idUser = t.idUser
-     LEFT JOIN Technician_Specialty ts ON ts.idTechnician = t.idTechnician
-	 LEFT JOIN Specialty s ON s.idSpecialty = ts.idSpecialty
-     GROUP BY t.idTechnician, t.WorkLoad, t.Availability, u.idUser, u.Username, u.Email, u.LastSesion, u.idRol;
-SQL;
-
+        // Consulta simple de técnicos
+        $vSql = "SELECT * FROM Technician";
         $vResultado = $this->enlace->ExecuteSQL($vSql);
-
-        // Convertir Specialties de string a array
-        if (is_array($vResultado)) {
-            foreach ($vResultado as $row) {
-                if (isset($row->Specialties) && !empty($row->Specialties)) {
-                    $row->Specialties = explode('|', $row->Specialties);
-                } else {
-                    $row->Specialties = [];
-                }
+        
+        // Construir cada técnico con sus relaciones
+        if (!empty($vResultado) && is_array($vResultado)) {
+            for ($i = 0; $i < count($vResultado); $i++) {
+                $vResultado[$i] = $this->get($vResultado[$i]->idTechnician);
             }
         }
-
+        
         return $vResultado;
     }
 
+    /**
+     * Obtener un técnico específico con todas sus relaciones
+     * @param int $idTechnician - ID del técnico
+     * @return object|null - Objeto técnico completo
+     */
     public function get($idTechnician)
     {
+        $userM = new UserModel();
+        $specialtyM = new SpecialtyModel();
+        
         $idTechnician = (int) $idTechnician;
-
-        $vSql = <<<SQL
-     SELECT
-     t.idTechnician, t.WorkLoad, t.Availability,
-	 u.idUser, u.Username, u.Email, u.LastSesion, u.idRol,
-     GROUP_CONCAT(DISTINCT s.Description ORDER BY s.Description SEPARATOR '|') AS Specialties
-	 FROM Technician t
-     LEFT JOIN `User` u ON u.idUser = t.idUser
-     LEFT JOIN Technician_Specialty ts ON ts.idTechnician = t.idTechnician
-	 LEFT JOIN Specialty s ON s.idSpecialty = ts.idSpecialty
-     WHERE t.idTechnician = {$idTechnician}
-     GROUP BY t.idTechnician, t.WorkLoad, t.Availability, u.idUser, u.Username, u.Email, u.LastSesion, u.idRol;
-SQL;
-
+        
+        // Consulta básica del técnico
+        $vSql = "SELECT * FROM Technician WHERE idTechnician = $idTechnician";
         $vResultado = $this->enlace->ExecuteSQL($vSql);
-
-        // Convertir Specialties de string a array
-        if (is_array($vResultado) && count($vResultado) > 0) {
-            $row = $vResultado[0];
-            if (isset($row->Specialties) && !empty($row->Specialties)) {
-                $row->Specialties = explode('|', $row->Specialties);
-            } else {
-                $row->Specialties = [];
+        
+        if (!empty($vResultado) && is_array($vResultado)) {
+            $vResultado = $vResultado[0];
+            
+            // Agregar información del usuario
+            if (isset($vResultado->idUser) && $vResultado->idUser) {
+                $user = $userM->get($vResultado->idUser);
+                if ($user) {
+                    $vResultado->Username = $user->Username;
+                    $vResultado->Email = $user->Email;
+                    $vResultado->LastSesion = $user->LastSesion;
+                    $vResultado->idRol = $user->idRol;
+                }
             }
-            return $row;
+            
+            // Agregar especialidades
+            $vResultado->Specialties = $this->getSpecialties($idTechnician);
+            
+            return $vResultado;
         }
-
+        
         return null;
     }
 
+    /**
+     * Obtener información simple del técnico (solo WorkLoad y Availability)
+     * @param int $idTechnician - ID del técnico
+     * @return object|null - Objeto con WorkLoad y Availability
+     */
     public function Simple($idTechnician)
     {
         $idTechnician = (int) $idTechnician;
 
-        $vSql = "SELECT t.WorkLoad, t.Availability FROM Technician t WHERE idTechnician = {$idTechnician}";
+        $vSql = "SELECT WorkLoad, Availability FROM Technician WHERE idTechnician = $idTechnician";
 
         $vResultado = $this->enlace->ExecuteSQL($vSql);
 
@@ -84,5 +85,31 @@ SQL;
         }
 
         return null;
+    }
+
+    /**
+     * Obtener las especialidades de un técnico
+     * @param int $idTechnician - ID del técnico
+     * @return array - Lista de nombres de especialidades
+     */
+    private function getSpecialties($idTechnician)
+    {
+        $vSql = "SELECT s.Description
+                 FROM Specialty s
+                 INNER JOIN Technician_Specialty ts ON ts.idSpecialty = s.idSpecialty
+                 WHERE ts.idTechnician = $idTechnician
+                 ORDER BY s.Description";
+        
+        $specialties = $this->enlace->ExecuteSQL($vSql);
+        
+        // Extraer solo los nombres en un array simple
+        $result = [];
+        if (!empty($specialties) && is_array($specialties)) {
+            foreach ($specialties as $specialty) {
+                $result[] = $specialty->Description;
+            }
+        }
+        
+        return $result;
     }
 }

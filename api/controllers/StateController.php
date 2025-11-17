@@ -1,6 +1,6 @@
 <?php
 class state
-{/*
+{
     public function index()
     {
         try {
@@ -11,10 +11,9 @@ class state
             //Dar respuesta
             $response->toJSON($result);
         } catch (Exception $e) {
-            $response->toJSON($result);
             handleException($e);
         }
-    }*/
+    }
     
     public function get($param)
     {
@@ -25,7 +24,6 @@ class state
             //Dar respuesta
             $response->toJSON($result);
         } catch (Exception $e) {
-            $response->toJSON($result);
             handleException($e);
         }
     }

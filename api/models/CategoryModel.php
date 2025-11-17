@@ -8,62 +8,87 @@ class CategoryModel
         $this->enlace = new MySqlConnect();
     }
 
+    /**
+     * Listar todas las categorías con sus relaciones
+     * @return array - Lista de categorías
+     */
     public function all()
     {
-        // Consulta SQL
-                $vSql = <<<'SQL'
-SELECT
-  c.idCategory,
-  c.Categoryname,
-  GROUP_CONCAT(DISTINCT l.Description ORDER BY l.Description SEPARATOR ', ') AS Labels,
-  GROUP_CONCAT(DISTINCT sp.Description ORDER BY sp.Description SEPARATOR ', ') AS Specialties,
-  IFNULL(MAX(CONCAT(s.MaxAnswerTime, ' h')), '') AS MaxAnswerTime,
-  IFNULL(MAX(CONCAT(s.MaxResolutionTime, ' h')), '') AS MaxResolutionTime
-FROM Category c
-LEFT JOIN SLA s ON c.idSla = s.idSla
-LEFT JOIN Label_Category lc ON lc.idCategory = c.idCategory
-LEFT JOIN Label l ON l.idLabel = lc.idLabel
-LEFT JOIN Category_Specialty cs ON cs.idCategory = c.idCategory
-LEFT JOIN Specialty sp ON sp.idSpecialty = cs.idSpecialty
-GROUP BY c.idCategory, c.Categoryname
-ORDER BY c.idCategory DESC;
-SQL;
-
+        // Consulta SQL simple
+        $vSql = "SELECT * FROM Category ORDER BY idCategory DESC";
+        
         // Ejecutar la consulta
         $vResultado = $this->enlace->ExecuteSQL($vSql);
+        
+        // Construir cada categoría con sus relaciones
+        if (!empty($vResultado) && is_array($vResultado)) {
+            for ($i = 0; $i < count($vResultado); $i++) {
+                $vResultado[$i] = $this->get($vResultado[$i]->idCategory);
+            }
+        }
 
-        // Retornar el objeto (array de filas)
         return $vResultado;
     }
 
+    /**
+     * Obtener una categoría específica con sus relaciones
+     * @param int $idCategory - ID de la categoría
+     * @return object|null - Objeto categoría completo
+     */
     public function get($idCategory)
     {
+        $labelM = new LabelModel();
+        $specialtyM = new SpecialtyModel();
+        $slaM = new SlaModel();
+        
         $idCategory = (int) $idCategory;
 
-        // Consulta SQL
-        $vSql = <<<SQL
-SELECT
-  c.idCategory,
-  c.Categoryname,
-  GROUP_CONCAT(DISTINCT l.Description ORDER BY l.Description SEPARATOR ', ') AS Labels,
-  GROUP_CONCAT(DISTINCT sp.Description ORDER BY sp.Description SEPARATOR ', ') AS Specialties,
-  IFNULL(MAX(CONCAT(s.MaxAnswerTime, ' h')), '') AS MaxAnswerTime,
-  IFNULL(MAX(CONCAT(s.MaxResolutionTime, ' h')), '') AS MaxResolutionTime
-FROM Category c
-LEFT JOIN SLA s ON c.idSla = s.idSla
-LEFT JOIN Label_Category lc ON lc.idCategory = c.idCategory
-LEFT JOIN Label l ON l.idLabel = lc.idLabel
-LEFT JOIN Category_Specialty cs ON cs.idCategory = c.idCategory
-LEFT JOIN Specialty sp ON sp.idSpecialty = cs.idSpecialty
-WHERE c.idCategory = $idCategory
-GROUP BY c.idCategory, c.Categoryname
-ORDER BY c.idCategory DESC;
-SQL;
-
-        // Ejecutar la consulta
+        // Consulta básica de la categoría
+        $vSql = "SELECT * FROM Category WHERE idCategory = $idCategory";
+        
         $vResultado = $this->enlace->ExecuteSQL($vSql);
+        
+        if (!empty($vResultado) && is_array($vResultado)) {
+            $vResultado = $vResultado[0];
+            
+            // Obtener Labels de la categoría
+            $labels = $labelM->getbyCat($idCategory);
+            $labelNames = [];
+            if (!empty($labels) && is_array($labels)) {
+                foreach ($labels as $label) {
+                    $labelNames[] = $label->Description;
+                }
+            }
+            $vResultado->Labels = !empty($labelNames) ? implode(', ', $labelNames) : '';
+            
+            // Obtener Specialties de la categoría
+            $specialties = $specialtyM->getbyCat($idCategory);
+            $specialtyNames = [];
+            if (!empty($specialties) && is_array($specialties)) {
+                foreach ($specialties as $specialty) {
+                    $specialtyNames[] = $specialty->Description;
+                }
+            }
+            $vResultado->Specialties = !empty($specialtyNames) ? implode(', ', $specialtyNames) : '';
+            
+            // Obtener información del SLA
+            if (isset($vResultado->idSLA) && $vResultado->idSLA) {
+                $sla = $slaM->get($vResultado->idSLA);
+                if ($sla) {
+                    $vResultado->MaxAnswerTime = $sla->MaxAnswerTime . ' h';
+                    $vResultado->MaxResolutionTime = $sla->MaxResolutionTime . ' h';
+                } else {
+                    $vResultado->MaxAnswerTime = '';
+                    $vResultado->MaxResolutionTime = '';
+                }
+            } else {
+                $vResultado->MaxAnswerTime = '';
+                $vResultado->MaxResolutionTime = '';
+            }
+            
+            return $vResultado;
+        }
 
-        // Retornar el objeto (array de filas)
-        return $vResultado;
+        return null;
     }
 }

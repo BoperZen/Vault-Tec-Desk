@@ -9,86 +9,89 @@ class AssignModel
     }
 
     /**
-     * Obtener un assign por id en formato:
-     * {
-     *   idAssign, DateOfAssign, PriorityScore, WorkFlowRules, 
-     *   Ticket: [ { idTicket, Title, DateOf, idState, User: { idUser, Username } } ],
-     *   Technician: { idTechnician, idUser, Username }
-     * }
-     *
-     * Si idWorkFlowRules es NULL -> WorkFlowRules = "Manual"
+     * Obtener la asignación de un ticket con todas sus relaciones
+     * @param int $idTicket - ID del ticket
+     * @return object|null - Objeto assign completo
      */
     public function get($idTicket)
     {
-        $idTicket = (int)$idTicket;
+        $technicianM = new TechnicianModel();
+        $userM = new UserModel();
+        
+        $idTicket = (int) $idTicket;
 
-        $vSql = <<<SQL
-SELECT
-  a.idAssign,
-  a.DateOfAssign,
-  a.PriorityScore,
-  a.idWorkFlowRules,
-  tk.idTicket,
-  tk.Title,
-  tk.DateOfEntry AS EntryDate,
-  tk.idState AS TicketState,
-  tk.idUser AS TicketUserId,
-  u_t.Username AS TicketUsername,
-  tech.idTechnician,
-  tech.idUser AS TechUserId,
-  u_tech.Username AS TechUsername
-FROM assign a
-LEFT JOIN Ticket tk ON tk.idTicket = a.idTicket
-LEFT JOIN `User` u_t ON u_t.idUser = tk.idUser
-LEFT JOIN Technician tech ON tech.idTechnician = a.idTechnician
-LEFT JOIN `User` u_tech ON u_tech.idUser = tech.idUser
-WHERE a.idTicket = $idTicket
-SQL;
-
+        // Consulta básica del assign
+        $vSql = "SELECT * FROM assign WHERE idTicket = $idTicket";
         $rows = $this->enlace->ExecuteSQL($vSql);
 
         if (!is_array($rows) || count($rows) === 0) {
             return null; // no existe ese assign
         }
 
-        // toma la primera fila
-        $r = $rows[0];
+        // Toma la primera fila
+        $assign = $rows[0];
 
-        // Armar objeto assign
-        $assign = new stdClass();
-        $assign->idAssign = isset($r->idAssign) ? (int)$r->idAssign : null;
-        $assign->DateOfAssign = $r->DateOfAssign ?? null;
-        $assign->PriorityScore = isset($r->PriorityScore) ? (int)$r->PriorityScore : null;
+        // Convertir tipos de datos
+        $assign->idAssign = isset($assign->idAssign) ? (int) $assign->idAssign : null;
+        $assign->PriorityScore = isset($assign->PriorityScore) ? (int) $assign->PriorityScore : null;
 
-        // WorkFlowRules: si es NULL -> "Manual", si no -> id (o cadena)
-        $assign->WorkFlowRules = isset($r->idWorkFlowRules) && $r->idWorkFlowRules !== null
-            ? (int)$r->idWorkFlowRules
+        // WorkFlowRules: si es NULL -> "Manual", si no -> id
+        $assign->WorkFlowRules = isset($assign->idWorkFlowRules) && $assign->idWorkFlowRules !== null
+            ? (int) $assign->idWorkFlowRules
             : 'Manual';
 
-        // Ticket: lo devolvemos como array de objetos (puede estar vacío)
+        // Obtener información básica del ticket (SIN crear el objeto completo para evitar recursión)
+        $vSqlTicket = "SELECT idTicket, Title, DateOfEntry, idState, idUser 
+                       FROM Ticket 
+                       WHERE idTicket = $idTicket";
+        $ticketData = $this->enlace->ExecuteSQL($vSqlTicket);
+        
+        // Ticket: lo devolvemos como array de objetos
         $assign->Ticket = [];
-        if (isset($r->idTicket) && $r->idTicket !== null) {
-            $ticket = new stdClass();
-            $ticket->idTicket = (int)$r->idTicket;
-            $ticket->Title = $r->Title ?? '';
-            $ticket->DateOfEntry = $r->EntryDate ?? null;
-            $ticket->idState = isset($r->TicketState) ? (int)$r->TicketState : null;
-
-            // user dentro del ticket
-            $ticket->User = new stdClass();
-            $ticket->User->idUser = isset($r->TicketUserId) ? (int)$r->TicketUserId : null;
-            $ticket->User->Username = $r->TicketUsername ?? '';
-
+        if (!empty($ticketData) && is_array($ticketData)) {
+            $t = $ticketData[0];
+            
+            $ticket = (object)[
+                'idTicket' => (int) $t->idTicket,
+                'Title' => $t->Title ?? '',
+                'DateOfEntry' => $t->DateOfEntry ?? null,
+                'idState' => isset($t->idState) ? (int) $t->idState : null
+            ];
+            
+            // Agregar user dentro del ticket (información básica)
+            if (isset($t->idUser) && $t->idUser) {
+                $user = $userM->get($t->idUser);
+                $ticket->User = (object)[
+                    'idUser' => isset($user->idUser) ? (int) $user->idUser : null,
+                    'Username' => $user->Username ?? ''
+                ];
+            } else {
+                $ticket->User = null;
+            }
+            
             $assign->Ticket[] = $ticket;
         }
 
-        // Technician fuera del ticket (objeto simple o null)
-        if (isset($r->idTechnician) && $r->idTechnician !== null) {
-            $tech = new stdClass();
-            $tech->idTechnician = (int)$r->idTechnician;
-            $tech->idUser = isset($r->TechUserId) ? (int)$r->TechUserId : null;
-            $tech->Username = $r->TechUsername ?? '';
-            $assign->Technician = $tech;
+        // Technician: obtener información del técnico (SIN especialidades para evitar llamadas extras)
+        if (isset($assign->idTechnician) && $assign->idTechnician !== null) {
+            // Obtener técnico simple para evitar muchas queries
+            $techSimple = $technicianM->Simple($assign->idTechnician);
+            
+            // Obtener usuario del técnico
+            $vSqlTech = "SELECT idUser FROM Technician WHERE idTechnician = " . (int)$assign->idTechnician;
+            $techData = $this->enlace->ExecuteSQL($vSqlTech);
+            
+            if (!empty($techData) && is_array($techData)) {
+                $techUser = $userM->get($techData[0]->idUser);
+                
+                $assign->Technician = (object)[
+                    'idTechnician' => (int) $assign->idTechnician,
+                    'idUser' => isset($techUser->idUser) ? (int) $techUser->idUser : null,
+                    'Username' => $techUser->Username ?? ''
+                ];
+            } else {
+                $assign->Technician = null;
+            }
         } else {
             $assign->Technician = null;
         }

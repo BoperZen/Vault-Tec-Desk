@@ -7,68 +7,70 @@ class UserModel
 	public $enlace;
 	public function __construct()
 	{
-
 		$this->enlace = new MySqlConnect();
 	}
+
+	/**
+	 * Listar todos los usuarios
+	 * @return array - Lista de usuarios
+	 */
 	public function all()
 	{
-			//Consulta sql
-			$vSql = "SELECT * FROM user;";
-
-			//Ejecutar la consulta
-			$vResultado = $this->enlace->ExecuteSQL($vSql);
-
-			// Retornar el objeto
-			return $vResultado;
+		$rolM = new RolModel();
 		
+		// Consulta SQL
+		$vSql = "SELECT * FROM user";
+		
+		// Ejecutar la consulta
+		$vResultado = $this->enlace->ExecuteSQL($vSql);
+		
+		// Agregar rol a cada usuario
+		if (!empty($vResultado) && is_array($vResultado)) {
+			for ($i = 0; $i < count($vResultado); $i++) {
+				$rol = $rolM->getRolUser($vResultado[$i]->idUser);
+				$vResultado[$i]->rol = $rol;
+			}
+		}
+		
+		// Retornar el objeto
+		return $vResultado;
 	}
 
-	/*public function get($idUser)  //Muestra la contra de un usuario
-	{
-			$rolM = new RolModel();
-			//Consulta sql
-			$vSql = "SELECT * FROM User where idUser=$idUser";
-			//Ejecutar la consulta
-			$vResultado = $this->enlace->ExecuteSQL($vSql);
-			if ($vResultado) {
-				$vResultado = $vResultado[0];
-				$rol = $rolM->getRolUser($idUser);
-				$vResultado->rol = $rol;
-				// Retornar el objeto
-				return $vResultado;
-			} else {
-				return null;
-			}
-		
-	}*/
-
+	/**
+	 * Obtener un usuario específico con su rol
+	 * @param int $id - ID del usuario
+	 * @return object|null - Objeto usuario con rol
+	 */
 	public function get($id)
-    {
-        $rolM = new RolModel();
-        $id = intval($id);
+	{
+		$rolM = new RolModel();
+		$id = intval($id);
 
-        $vSql = "
-            SELECT
-                idUser,
-                Username,
-                Email,
-                idRol,
-                DATE_FORMAT(LastSesion, '%Y-%m-%d %H:%i:%s') AS LastSesion
-            FROM `User`
-            WHERE idUser = {$id}
-            LIMIT 1;
-        ";
+		// Consulta básica del usuario
+		$vSql = "SELECT
+					idUser,
+					Username,
+					Email,
+					idRol,
+					DATE_FORMAT(LastSesion, '%Y-%m-%d %H:%i:%s') AS LastSesion
+				FROM `User`
+				WHERE idUser = {$id}
+				LIMIT 1";
 
-        $vResultado = $this->enlace->ExecuteSQL($vSql);
-        if ($vResultado) {
-            $vResultado = $vResultado[0];
-            $rol = $rolM->getRolUser($id);
-            $vResultado->rol = $rol;
-            return $vResultado;
-        } else {
-            return null;
-        }
-    }
+		$vResultado = $this->enlace->ExecuteSQL($vSql);
+		
+		if ($vResultado) {
+			$vResultado = $vResultado[0];
+			
+			// Agregar información del rol
+			$rol = $rolM->getRolUser($id);
+			$vResultado->rol = $rol;
+			
+			return $vResultado;
+		} else {
+			return null;
+		}
+	}
 
 	//----------------------------------------------------------------------
 	//-------- Ajustar estos metodos para que trabajen con clientes -----------

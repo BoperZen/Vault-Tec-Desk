@@ -14,9 +14,11 @@ import {
   CheckCircle2,
   XCircle,
   Filter,
+  Plus,
+  Edit,
 } from 'lucide-react';
 import { useRole } from '@/hooks/use-role';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import TicketService from '@/services/TicketService';
 import TechnicianService from '@/services/TechnicianService';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { StateProgress } from '@/components/ui/state-progress';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -61,6 +64,7 @@ const getStateIcon = (state) => {
 
 export default function TicketList() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { role } = useRole();
   const technicianId = import.meta.env.VITE_TECHNICIAN_ID;
   const [tickets, setTickets] = useState([]);
@@ -321,6 +325,14 @@ export default function TicketList() {
         </div>
         
         <div className="flex items-center gap-3">
+          {/* Botón Crear Ticket */}
+          <Button
+            onClick={() => navigate('/tickets/create')}
+            className="gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo Ticket
+          </Button>
           {/* Filtros (solo para admin) */}
           {role === 3 && (
             <>
@@ -437,8 +449,19 @@ export default function TicketList() {
                       <StateProgress currentState={ticket.State} />
                     </div>
 
-                    {/* Right: Icon */}
+                    {/* Right: Actions */}
                     <div className="flex items-center gap-2 pt-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/tickets/edit/${ticket.idTicket}`);
+                        }}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
                       <ChevronDown 
                         className={`w-5 h-5 text-muted-foreground transition-transform duration-300 ${
                           expandedTicket === ticket.idTicket ? 'transform rotate-180' : ''

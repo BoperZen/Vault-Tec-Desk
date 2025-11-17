@@ -46,4 +46,20 @@ class ImageModel
         // Retornar la primera fila o null si no existe
         return isset($vResultado[0]) ? $vResultado[0] : null;
     }
+
+    // Obtener imágenes de un StateRecord
+    public function getImageStateRecord($idStateRecord)
+    {
+        // Consulta SQL con JOIN a la tabla intermedia
+        $vSql = "SELECT i.* 
+                 FROM Image i
+                 INNER JOIN image_staterecord isr ON isr.idImage = i.idImage
+                 WHERE isr.idStateRecord = $idStateRecord";
+
+        // Ejecutar la consulta
+        $vResultado = $this->enlace->ExecuteSQL($vSql);
+
+        // Retornar el array de imágenes (puede estar vacío)
+        return $vResultado ? $vResultado : [];
+    }
 }

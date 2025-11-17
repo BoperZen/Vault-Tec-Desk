@@ -1,20 +1,19 @@
 <?php
 class label
-{ /*
+{
     public function index()
     {
         try {
             $response = new Response();
             //Obtener el listado del Modelo
-            $state = new StateModel();
-            $result = $state->all();
+            $label = new LabelModel();
+            $result = $label->all();
             //Dar respuesta
             $response->toJSON($result);
         } catch (Exception $e) {
-            $response->toJSON($result);
             handleException($e);
         }
-    }*/
+    }
     
     public function getbyCat($param)
     {
@@ -25,7 +24,6 @@ class label
             //Dar respuesta
             $response->toJSON($result);
         } catch (Exception $e) {
-            $response->toJSON($result);
             handleException($e);
         }
     }
