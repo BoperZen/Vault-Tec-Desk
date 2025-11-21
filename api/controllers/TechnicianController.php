@@ -43,4 +43,44 @@ class technician
             handleException($e);
         }
     }
+
+    public function create()
+    {
+        try {
+            $response = new Response();
+            $request = new Request();
+            
+            // Obtener los datos del request como JSON
+            $data = $request->getJSON();
+            
+            // Crear el técnico
+            $technician = new TechnicianModel();
+            $result = $technician->create($data);
+            
+            // Dar respuesta
+            $response->toJSON($result);
+        } catch (Exception $e) {
+            handleException($e);
+        }
+    }
+
+    public function update()
+    {
+        try {
+            $response = new Response();
+            $request = new Request();
+            
+            // Obtener los datos del request como JSON
+            $data = $request->getJSON();
+            
+            // Actualizar el técnico
+            $technician = new TechnicianModel();
+            $result = $technician->update($data);
+            
+            // Dar respuesta
+            $response->toJSON($result);
+        } catch (Exception $e) {
+            handleException($e);
+        }
+    }
 }

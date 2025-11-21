@@ -1,4 +1,7 @@
 <?php
+// Configurar zona horaria (América Central - UTC-6)
+date_default_timezone_set('America/Guatemala');
+
 // Composer autoloader
 require_once 'vendor/autoload.php';
 /*Encabezada de las solicitudes*/
@@ -37,6 +40,7 @@ require_once "models/CategoryModel.php";
 require_once "models/TechnicianModel.php";
 require_once "models/AssignModel.php";
 require_once "models/TicketModel.php";
+require_once "models/PriorityModel.php";
 
 /***--- Agregar todos los controladores*/
 require_once "controllers/UserController.php";
@@ -53,6 +57,7 @@ require_once "controllers/CategoryController.php";
 require_once "controllers/TechnicianController.php";
 require_once "controllers/AssignController.php";
 require_once "controllers/TicketController.php";
+require_once "controllers/PriorityController.php";
 
 //Enrutador
 require_once "routes/RoutesController.php";

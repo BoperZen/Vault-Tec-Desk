@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useNotification } from '@/context/NotificationContext';
 import { 
   User, 
   Mail, 
@@ -12,10 +14,12 @@ import {
   Calendar,
   Briefcase,
   Target,
+  Plus,
 } from 'lucide-react';
 import TechnicianService from '@/services/TechnicianService';
 import TicketService from '@/services/TicketService';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -51,11 +55,25 @@ const getWorkloadColor = (workload) => {
 };
 
 export default function TechnicianList() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { showNotification } = useNotification();
   const [technicians, setTechnicians] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedTech, setExpandedTech] = useState(null);
   const [ticketStats, setTicketStats] = useState({});
+
+  // Mostrar notificación si viene del formulario de creación/edición
+  useEffect(() => {
+    if (location.state?.notification) {
+      const { message, type } = location.state.notification;
+      showNotification(message, type);
+      // Limpiar el estado para que no se muestre de nuevo al recargar
+      window.history.replaceState({}, document.title);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -159,7 +177,7 @@ export default function TechnicianList() {
   }
 
   return (
-    <div className="space-y-6 container mx-auto px-4">
+    <div className="space-y-6 container mx-auto px-4 mb-4">
       {/* Header */}
       <div className="flex items-center justify-between mt-4">
         <div>
@@ -168,9 +186,19 @@ export default function TechnicianList() {
             Personal técnico del sistema Vault-Tec
           </p>
         </div>
-        <Badge variant="outline" className="text-sm px-4 py-2">
-          {technicians.length} técnicos
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Button 
+            onClick={() => navigate('/technicians/create')}
+            size="sm"
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Nuevo Técnico
+          </Button>
+          <Badge variant="outline" className="text-sm px-4 py-2">
+            {technicians.length} técnicos
+          </Badge>
+        </div>
       </div>
 
       {/* Stats Summary Cards */}
@@ -259,7 +287,7 @@ export default function TechnicianList() {
                       {/* Avatar */}
                       <div className="relative">
                         <Avatar className="w-16 h-16 border-2 border-accent/20">
-                          <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${tech.Username}`} />
+                          <AvatarImage src={`https://api.dicebear.com/7.x/${tech.AvatarStyle || 'avataaars'}/svg?seed=${tech.AvatarSeed || tech.Username}`} />
                           <AvatarFallback className="bg-accent/10 text-accent text-lg font-bold">
                             {tech.Username.substring(0, 2).toUpperCase()}
                           </AvatarFallback>
@@ -348,7 +376,9 @@ export default function TechnicianList() {
                             <span>Última Sesión</span>
                           </div>
                           <p className="text-sm font-medium truncate">
-                            {new Date(tech.LastSesion).toLocaleDateString()}
+                            {tech.LastSesion && !isNaN(new Date(tech.LastSesion).getTime())
+                              ? new Date(tech.LastSesion).toLocaleDateString()
+                              : 'Sin sesión aún'}
                           </p>
                         </CardContent>
                       </Card>
@@ -394,11 +424,14 @@ export default function TechnicianList() {
 
                     {/* Contact Actions */}
                     <div className="flex gap-2">
-                      <button className="flex-1 px-4 py-2 text-sm font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
-                        Ver Tickets
+                      <button 
+                        className="flex-1 px-4 py-2 text-sm font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                        onClick={() => navigate(`/technicians/edit/${tech.idTechnician}`)}
+                      >
+                        Editar Técnico
                       </button>
                       <button className="flex-1 px-4 py-2 text-sm font-medium rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors">
-                        Asignar Ticket
+                        Ver Tickets
                       </button>
                     </div>
                   </CardContent>

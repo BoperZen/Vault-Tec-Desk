@@ -28,6 +28,9 @@ class MySqlConnect {
 		try {
 			$this->link = new mysqli ( $this->host, $this->username, $this->password, $this->dbname );
 			
+			// Configurar zona horaria de MySQL para que coincida con PHP
+			$this->link->query("SET time_zone = '-06:00'");
+			
 		} catch ( Exception $e ) {
 			handleException($e);
 		}

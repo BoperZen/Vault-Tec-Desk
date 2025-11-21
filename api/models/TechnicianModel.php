@@ -15,7 +15,7 @@ class TechnicianModel
     public function all()
     {
         // Consulta simple de técnicos
-        $vSql = "SELECT * FROM Technician";
+        $vSql = "SELECT * FROM technician";
         $vResultado = $this->enlace->ExecuteSQL($vSql);
         
         // Construir cada técnico con sus relaciones
@@ -41,7 +41,7 @@ class TechnicianModel
         $idTechnician = (int) $idTechnician;
         
         // Consulta básica del técnico
-        $vSql = "SELECT * FROM Technician WHERE idTechnician = $idTechnician";
+        $vSql = "SELECT * FROM technician WHERE idTechnician = $idTechnician";
         $vResultado = $this->enlace->ExecuteSQL($vSql);
         
         if (!empty($vResultado) && is_array($vResultado)) {
@@ -61,6 +61,9 @@ class TechnicianModel
             // Agregar especialidades
             $vResultado->Specialties = $this->getSpecialties($idTechnician);
             
+            // Agregar los IDs de especialidades como array
+            $vResultado->SpecialtyIds = $this->getSpecialtyIds($idTechnician);
+            
             return $vResultado;
         }
         
@@ -76,7 +79,7 @@ class TechnicianModel
     {
         $idTechnician = (int) $idTechnician;
 
-        $vSql = "SELECT WorkLoad, Availability FROM Technician WHERE idTechnician = $idTechnician";
+        $vSql = "SELECT WorkLoad, Availability FROM technician WHERE idTechnician = $idTechnician";
 
         $vResultado = $this->enlace->ExecuteSQL($vSql);
 
@@ -95,8 +98,8 @@ class TechnicianModel
     private function getSpecialties($idTechnician)
     {
         $vSql = "SELECT s.Description
-                 FROM Specialty s
-                 INNER JOIN Technician_Specialty ts ON ts.idSpecialty = s.idSpecialty
+                 FROM specialty s
+                 INNER JOIN technician_specialty ts ON ts.idSpecialty = s.idSpecialty
                  WHERE ts.idTechnician = $idTechnician
                  ORDER BY s.Description";
         
@@ -111,5 +114,230 @@ class TechnicianModel
         }
         
         return $result;
+    }
+
+    /**
+     * Obtener los IDs de las especialidades de un técnico
+     * @param int $idTechnician - ID del técnico
+     * @return array - Lista de IDs de especialidades
+     */
+    private function getSpecialtyIds($idTechnician)
+    {
+        $vSql = "SELECT s.idSpecialty
+                 FROM specialty s
+                 INNER JOIN technician_specialty ts ON ts.idSpecialty = s.idSpecialty
+                 WHERE ts.idTechnician = $idTechnician
+                 ORDER BY s.Description";
+        
+        $specialties = $this->enlace->ExecuteSQL($vSql);
+        
+        // Extraer solo los IDs en un array simple
+        $result = [];
+        if (!empty($specialties) && is_array($specialties)) {
+            foreach ($specialties as $specialty) {
+                $result[] = $specialty->idSpecialty;
+            }
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Crear un nuevo técnico
+     * @param object $data - Datos del técnico (Username, Email, Password, idSpecialty)
+     * @return array - Resultado con success y data/message
+     */
+    public function create($data)
+    {
+        try {
+            // Validar datos requeridos
+            if (empty($data->Username)) {
+                return ['success' => false, 'message' => 'El nombre de usuario es requerido'];
+            }
+
+            if (empty($data->Email)) {
+                return ['success' => false, 'message' => 'El email es requerido'];
+            }
+
+            if (empty($data->Password)) {
+                return ['success' => false, 'message' => 'La contraseña es requerida'];
+            }
+
+            if (empty($data->specialties)) {
+                return ['success' => false, 'message' => 'Al menos una especialidad es requerida'];
+            }
+
+            // Validar formato de email
+            if (!filter_var($data->Email, FILTER_VALIDATE_EMAIL)) {
+                return ['success' => false, 'message' => 'El formato del email no es válido'];
+            }
+
+            // Verificar si el email ya existe
+            $emailCheck = "SELECT idUser FROM user WHERE Email = '" . $this->enlace->escapeString($data->Email) . "'";
+            $existingEmail = $this->enlace->ExecuteSQL($emailCheck);
+            if (!empty($existingEmail)) {
+                return ['success' => false, 'message' => 'El email ya está registrado'];
+            }
+
+            // Verificar si el username ya existe
+            $usernameCheck = "SELECT idUser FROM user WHERE Username = '" . $this->enlace->escapeString($data->Username) . "'";
+            $existingUsername = $this->enlace->ExecuteSQL($usernameCheck);
+            if (!empty($existingUsername)) {
+                return ['success' => false, 'message' => 'El nombre de usuario ya está registrado'];
+            }
+
+            // Escapar valores
+            $username = $this->enlace->escapeString($data->Username);
+            $email = $this->enlace->escapeString($data->Email);
+            $password = password_hash($data->Password, PASSWORD_DEFAULT);
+            $avatarStyle = isset($data->avatarStyle) ? $this->enlace->escapeString($data->avatarStyle) : 'avataaars';
+            $avatarSeed = isset($data->avatarSeed) ? $this->enlace->escapeString($data->avatarSeed) : '';
+
+            // Crear usuario primero (idRol = 1 para técnicos)
+            $vSqlUser = "INSERT INTO user (Username, Email, Password, idRol) 
+                        VALUES ('$username', '$email', '$password', 1)";
+            
+            $idUser = $this->enlace->executeSQL_DML_last($vSqlUser);
+
+            // Crear técnico con valores por defecto
+            $vSql = "INSERT INTO technician (idUser, WorkLoad, Availability, AvatarStyle, AvatarSeed) 
+                     VALUES ($idUser, 0, 5, '$avatarStyle', '$avatarSeed')";
+            
+            $idTechnician = $this->enlace->executeSQL_DML_last($vSql);
+
+            // Asignar especialidades (múltiples)
+            if (is_array($data->specialties)) {
+                foreach ($data->specialties as $idSpecialty) {
+                    $idSpec = (int)$idSpecialty;
+                    $vSqlSpecialty = "INSERT INTO technician_specialty (idTechnician, idSpecialty) 
+                                      VALUES ($idTechnician, $idSpec)";
+                    $this->enlace->ExecuteSQL_DML($vSqlSpecialty);
+                }
+            }
+
+            return [
+                'success' => true,
+                'data' => $this->get($idTechnician),
+                'message' => 'Técnico creado exitosamente'
+            ];
+
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error al crear técnico: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Actualizar un técnico existente
+     * @param object $data - Datos del técnico incluyendo idTechnician
+     * @return array - Resultado con success y data/message
+     */
+    public function update($data)
+    {
+        try {
+            // Validar ID
+            if (empty($data->idTechnician)) {
+                return ['success' => false, 'message' => 'ID de técnico es requerido'];
+            }
+
+            $idTechnician = (int)$data->idTechnician;
+
+            // Obtener técnico actual
+            $currentTechnician = $this->get($idTechnician);
+            if (!$currentTechnician) {
+                return ['success' => false, 'message' => 'Técnico no encontrado'];
+            }
+
+            if (empty($data->Username)) {
+                return ['success' => false, 'message' => 'El nombre de usuario es requerido'];
+            }
+
+            if (empty($data->Email)) {
+                return ['success' => false, 'message' => 'El email es requerido'];
+            }
+
+            if (empty($data->specialties)) {
+                return ['success' => false, 'message' => 'Al menos una especialidad es requerida'];
+            }
+
+            // Validar formato de email
+            if (!filter_var($data->Email, FILTER_VALIDATE_EMAIL)) {
+                return ['success' => false, 'message' => 'El formato del email no es válido'];
+            }
+
+            $idUser = (int)$currentTechnician->idUser;
+
+            // Verificar si el email ya existe (excepto el actual)
+            $emailCheck = "SELECT idUser FROM user WHERE Email = '" . $this->enlace->escapeString($data->Email) . "' AND idUser != $idUser";
+            $existingEmail = $this->enlace->ExecuteSQL($emailCheck);
+            if (!empty($existingEmail)) {
+                return ['success' => false, 'message' => 'El email ya está registrado'];
+            }
+
+            // Verificar si el username ya existe (excepto el actual)
+            $usernameCheck = "SELECT idUser FROM user WHERE Username = '" . $this->enlace->escapeString($data->Username) . "' AND idUser != $idUser";
+            $existingUsername = $this->enlace->ExecuteSQL($usernameCheck);
+            if (!empty($existingUsername)) {
+                return ['success' => false, 'message' => 'El nombre de usuario ya está registrado'];
+            }
+
+            // Escapar valores
+            $username = $this->enlace->escapeString($data->Username);
+            $email = $this->enlace->escapeString($data->Email);
+
+            // Actualizar usuario
+            $vSqlUser = "UPDATE user 
+                        SET Username = '$username', 
+                            Email = '$email'";
+            
+            // Si se proporciona nueva contraseña, actualizarla
+            if (!empty($data->Password)) {
+                $password = password_hash($data->Password, PASSWORD_DEFAULT);
+                $vSqlUser .= ", Password = '$password'";
+            }
+            
+            $vSqlUser .= " WHERE idUser = $idUser";
+            $this->enlace->ExecuteSQL_DML($vSqlUser);
+
+            // Actualizar avatarStyle y avatarSeed si se proporcionan
+            if (isset($data->avatarStyle) || isset($data->avatarSeed)) {
+                $updates = [];
+                if (isset($data->avatarStyle)) {
+                    $avatarStyle = $this->enlace->escapeString($data->avatarStyle);
+                    $updates[] = "AvatarStyle = '$avatarStyle'";
+                }
+                if (isset($data->avatarSeed)) {
+                    $avatarSeed = $this->enlace->escapeString($data->avatarSeed);
+                    $updates[] = "AvatarSeed = '$avatarSeed'";
+                }
+                if (!empty($updates)) {
+                    $vSqlAvatar = "UPDATE technician SET " . implode(', ', $updates) . " WHERE idTechnician = $idTechnician";
+                    $this->enlace->ExecuteSQL_DML($vSqlAvatar);
+                }
+            }
+
+            // Actualizar especialidades del técnico
+            // Eliminar especialidades actuales
+            $vSqlDeleteSpecialty = "DELETE FROM technician_specialty WHERE idTechnician = $idTechnician";
+            $this->enlace->ExecuteSQL_DML($vSqlDeleteSpecialty);
+            
+            // Insertar nuevas especialidades (múltiples)
+            if (is_array($data->specialties)) {
+                foreach ($data->specialties as $idSpecialty) {
+                    $idSpec = (int)$idSpecialty;
+                    $vSqlSpecialty = "INSERT INTO technician_specialty (idTechnician, idSpecialty) 
+                                      VALUES ($idTechnician, $idSpec)";
+                    $this->enlace->ExecuteSQL_DML($vSqlSpecialty);
+                }
+            }
+
+            return [
+                'success' => true,
+                'data' => $this->get($idTechnician),
+                'message' => 'Técnico actualizado exitosamente'
+            ];
+
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error al actualizar técnico: ' . $e->getMessage()];
+        }
     }
 }

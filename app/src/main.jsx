@@ -9,8 +9,10 @@ import { PageNotFound } from './components/Home/PageNotFound';
 import TicketList from './components/Tickets/TicketList';
 import UpkeepTicket from './components/Tickets/UpkeepTicket';
 import TechnicianList from './components/Technicians/TechnicianList';
+import UpkeepTechnician from './components/Technicians/UpkeepTechnician';
 import CalendarView from './components/Calendar/CalendarView';
 import CategoryList from './components/Categories/CategoryList';
+import UpkeepCategory from './components/Categories/UpkeepCategory';
 
 const rutas = createBrowserRouter([
   {
@@ -23,14 +25,17 @@ const rutas = createBrowserRouter([
       { path: "tickets/my", element: <TicketList /> },
       { path: "tickets/assigned", element: <TicketList /> },
       { path: "tickets/create", element: <UpkeepTicket /> },
-      { path: "tickets/edit/:id", element: <UpkeepTicket /> },
       { path: "assignments", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Vista de Asignaciones - En construcción</h2></div> },
       // Técnicos (solo admins)
       { path: "technicians", element: <TechnicianList /> },
+      { path: "technicians/create", element: <UpkeepTechnician /> },
+      { path: "technicians/edit/:id", element: <UpkeepTechnician /> },
       // Calendario (semanal para clientes, mensual para admins/técnicos)
       { path: "calendar", element: <CalendarView /> },
       // Categorías (solo admins)
       { path: "categories", element: <CategoryList /> },
+      { path: "categories/create", element: <UpkeepCategory /> },
+      { path: "categories/edit/:id", element: <UpkeepCategory /> },
       // Configuración
       { path: "settings", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Configuración - En construcción</h2></div> },
       // Ruta comodín (404)

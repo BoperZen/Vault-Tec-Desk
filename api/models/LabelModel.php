@@ -9,8 +9,10 @@ class LabelModel
     }
     public function all()
     {
-        // Consulta SQL
-        $vSql = "SELECT * FROM Label;";
+        // Consulta SQL con JOIN para obtener la categoría de cada etiqueta
+        $vSql = "SELECT l.*, lc.idCategory 
+                 FROM label l
+                 LEFT JOIN label_category lc ON lc.idLabel = l.idLabel;";
 
         // Ejecutar la consulta
         $vResultado = $this->enlace->ExecuteSQL($vSql);
@@ -23,7 +25,7 @@ class LabelModel
     {
         // Consulta SQL
         // Recordar cambiar el nombre de la columna idLabel si es necesario
-        $vSql = "SELECT * FROM Label WHERE idLabel=$id";
+        $vSql = "SELECT * FROM label WHERE idLabel=$id";
 
         // Ejecutar la consulta
         $vResultado = $this->enlace->ExecuteSQL($vSql);
@@ -36,8 +38,8 @@ class LabelModel
     {
         // Consulta SQL
         $vSql = "SELECT l.*
-      FROM Label l
-      INNER JOIN Label_Category lc ON lc.idLabel = l.idLabel
+      FROM label l
+      INNER JOIN label_category lc ON lc.idLabel = l.idLabel
       WHERE lc.idCategory = $idCategory";
 
         // Ejecutar la consulta

@@ -1,4 +1,4 @@
-import { Home, Ticket, User, Calendar } from 'lucide-react';
+import { Home, Ticket, User, Calendar, Users, FolderKanban } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -17,7 +17,9 @@ import {
 const navigationItems = [
   { title: 'Home', icon: Home, url: '/' },
   { title: 'Tickets', icon: Ticket, url: '/tickets' },
-  { title: 'Calendario', icon: Calendar, url: '/calendar' },
+  { title: 'Technicians', icon: Users, url: '/technicians' },
+  { title: 'Calendar', icon: Calendar, url: '/calendar' },
+  { title: 'Categories', icon: FolderKanban, url: '/categories' },
 ];
 
 export default function Header() {

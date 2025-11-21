@@ -41,7 +41,7 @@ class AssignModel
             : 'Manual';
 
         // Obtener información básica del ticket (SIN crear el objeto completo para evitar recursión)
-        $vSqlTicket = "SELECT idTicket, Title, DateOfEntry, idState, idUser 
+        $vSqlTicket = "SELECT idTicket, title, CreationDate, idState, idUser 
                        FROM Ticket 
                        WHERE idTicket = $idTicket";
         $ticketData = $this->enlace->ExecuteSQL($vSqlTicket);
@@ -53,8 +53,8 @@ class AssignModel
             
             $ticket = (object)[
                 'idTicket' => (int) $t->idTicket,
-                'Title' => $t->Title ?? '',
-                'DateOfEntry' => $t->DateOfEntry ?? null,
+                'Title' => $t->title ?? '',
+                'CreationDate' => $t->CreationDate ?? null,
                 'idState' => isset($t->idState) ? (int) $t->idState : null
             ];
             

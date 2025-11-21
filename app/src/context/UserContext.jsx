@@ -16,7 +16,7 @@ export const UserProvider = ({ children }) => {
     idUser: parseInt(import.meta.env.VITE_USER_ID) || 5,
     username: import.meta.env.VITE_USER_NAME || 'Usuario',
     email: import.meta.env.VITE_USER_EMAIL || 'user@example.com',
-    idRol: parseInt(import.meta.env.VITE_USER_ROLE) || 2, // 3: Admin, 2: Cliente, 1: Técnico
+    idRol: parseInt(import.meta.env.VITE_USER_ROLE) || 1, // 3: Admin, 2: Cliente, 1: Técnico
     roleName: import.meta.env.VITE_USER_ROLE_NAME || 'Usuario'
   });
 

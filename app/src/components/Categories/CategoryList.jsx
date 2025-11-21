@@ -12,7 +12,8 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useRole } from '@/hooks/use-role';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useNotification } from '@/context/NotificationContext';
 import CategoryService from '@/services/CategoryService';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,11 +29,24 @@ import {
 
 export default function CategoryList() {
   const { isAdmin } = useRole();
+  const location = useLocation();
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedCategory, setExpandedCategory] = useState(null);
+
+  // Mostrar notificación si viene del formulario de creación/edición
+  useEffect(() => {
+    if (location.state?.notification) {
+      const { message, type } = location.state.notification;
+      showNotification(message, type);
+      // Limpiar el estado para que no se muestre de nuevo al recargar
+      window.history.replaceState({}, document.title);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // Solo admins pueden ver categorías
@@ -63,11 +77,36 @@ export default function CategoryList() {
   );
 
   // Procesar las categorías para convertir strings a arrays
-  const processedCategories = filteredCategories.map(category => ({
-    ...category,
-    LabelsArray: category.Labels ? category.Labels.split(', ').filter(l => l) : [],
-    SpecialtiesArray: category.Specialties ? category.Specialties.split(', ').filter(s => s) : [],
-  }));
+  const processedCategories = filteredCategories.map(category => {
+    // Determinar color de prioridad
+    let priorityColor = 'bg-yellow-500'; // Media por defecto
+    let priorityText = 'Media';
+    
+    if (category.idPriority === 1 || category.idPriority === '1') {
+      priorityColor = 'bg-green-500';
+      priorityText = 'Baja';
+    } else if (category.idPriority === 3 || category.idPriority === '3') {
+      priorityColor = 'bg-red-500';
+      priorityText = 'Alta';
+    }
+    
+    return {
+      ...category,
+      LabelsArray: category.Labels ? category.Labels.split(', ').filter(l => l) : [],
+      SpecialtiesArray: category.Specialties ? category.Specialties.split(', ').filter(s => s) : [],
+      PriorityColor: priorityColor,
+      PriorityText: priorityText,
+    };
+  });
+
+  const getPriorityBadgeColor = (priority) => {
+    if (priority === 1 || priority === '1') {
+      return 'border-green-500/50 text-green-600 bg-green-500/10';
+    } else if (priority === 3 || priority === '3') {
+      return 'border-red-500/50 text-red-600 bg-red-500/10';
+    }
+    return 'border-yellow-500/50 text-yellow-600 bg-yellow-500/10';
+  };
 
   if (loading) {
     return (
@@ -110,7 +149,10 @@ export default function CategoryList() {
               Administra las categorías del sistema de tickets
             </p>
           </div>
-          <Button className="gap-2">
+          <Button 
+            className="gap-2"
+            onClick={() => navigate('/categories/create')}
+          >
             <Plus className="w-4 h-4" />
             Nueva Categoría
           </Button>
@@ -209,11 +251,11 @@ export default function CategoryList() {
                         </CardTitle>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <Badge variant="outline" className="text-xs">
-                          {category.LabelsArray.length} <Tag className="w-3 h-3 ml-1" />
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {category.SpecialtiesArray.length} <Briefcase className="w-3 h-3 ml-1" />
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs font-semibold ${getPriorityBadgeColor(category.idPriority)}`}
+                        >
+                          {category.PriorityText}
                         </Badge>
                         <ChevronDown
                           className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${
@@ -300,6 +342,10 @@ export default function CategoryList() {
                         variant="ghost" 
                         size="sm" 
                         className="flex-1 hover:bg-primary/10 hover:text-primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/categories/edit/${category.idCategory}`);
+                        }}
                       >
                         <Edit className="w-3 h-3 mr-2" />
                         Editar

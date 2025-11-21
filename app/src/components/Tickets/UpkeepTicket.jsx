@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useUser } from '@/context/UserContext';
 import { 
   Ticket, 
   User, 
@@ -38,26 +39,23 @@ import CategoryService from '@/services/CategoryService';
 import LabelService from '@/services/LabelService';
 
 /**
- * Componente para crear y editar tickets
- * Formulario completo de mantenimiento de tickets
+ * Componente para crear tickets
+ * Formulario completo de creación de tickets
  */
 export default function UpkeepTicket() {
   const navigate = useNavigate();
-  const { id } = useParams(); // Si hay ID, estamos editando
-  const isEditing = !!id;
+  const { currentUser } = useUser();
 
   // Estados del formulario
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [isUpdate, setIsUpdate] = useState(false); // Constante de estado para modo edición
-  const [categoryAccordionOpen, setCategoryAccordionOpen] = useState(false);
+  const [labelAccordionOpen, setLabelAccordionOpen] = useState(false);
 
   // Datos para los selects
   const [categories, setCategories] = useState([]);
   const [labels, setLabels] = useState([]);
-  const [filteredLabels, setFilteredLabels] = useState([]); // Etiquetas filtradas por categoría
 
   // Datos del formulario
   const [formData, setFormData] = useState({
@@ -68,6 +66,7 @@ export default function UpkeepTicket() {
     idCategory: '',
     idState: '1', // Por defecto: Pendiente
     idLabel: '',
+    Priority: '',
     idUser: '', // ID del usuario que crea el ticket
     Image: null,
     ImagePreview: null
@@ -76,47 +75,26 @@ export default function UpkeepTicket() {
   // Cargar datos iniciales
   useEffect(() => {
     loadInitialData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, []);
 
-  // Filtrar etiquetas cuando cambia la categoría
+  // Detectar categoría y prioridad cuando se selecciona una etiqueta
   useEffect(() => {
-    if (formData.idCategory && categories.length > 0) {
-      const category = categories.find(c => c.idCategory == formData.idCategory);
-      console.log('Categoría encontrada:', category);
-      console.log('Labels de la categoría:', category?.Labels);
+    if (formData.idLabel && labels.length > 0 && categories.length > 0) {
+      const selectedLabel = labels.find(l => l.idLabel == formData.idLabel);
       
-      if (category && category.Labels) {
-        let labelsArray = [];
+      if (selectedLabel && selectedLabel.idCategory) {
+        // Buscar la categoría completa para obtener su prioridad
+        const category = categories.find(c => c.idCategory == selectedLabel.idCategory);
         
-        // Si Labels es un string, parsearlo
-        if (typeof category.Labels === 'string') {
-          // Los labels vienen como string separados por coma
-          const labelNames = category.Labels.split(',').map(l => l.trim());
-          // Buscar los objetos completos de label en el array de todos los labels
-          labelsArray = labels.filter(label => 
-            labelNames.includes(label.Description || label.LabelName)
-          );
-          console.log('Labels como string parseados:', labelsArray);
-        } else if (Array.isArray(category.Labels)) {
-          labelsArray = category.Labels;
-          console.log('Labels como array:', labelsArray);
-        }
-        
-        setFilteredLabels(labelsArray);
-        
-        // Si la etiqueta actual no está en las filtradas, resetearla
-        if (formData.idLabel && !labelsArray.some(l => l.idLabel == formData.idLabel)) {
-          setFormData(prev => ({ ...prev, idLabel: '' }));
-        }
-      } else {
-        console.log('No hay labels en la categoría');
-        setFilteredLabels([]);
+        // Establecer la categoría y su prioridad automáticamente
+        setFormData(prev => ({
+          ...prev,
+          idCategory: selectedLabel.idCategory?.toString(),
+          Priority: category?.idPriority?.toString() || ''
+        }));
       }
-    } else {
-      setFilteredLabels([]);
     }
-  }, [formData.idCategory, categories, labels, formData.idLabel]);
+  }, [formData.idLabel, labels, categories]);
 
   /**
    * Carga las categorías, estados, etiquetas y el ticket si está editando
@@ -132,9 +110,7 @@ export default function UpkeepTicket() {
 
       try {
         const categoriesRes = await CategoryService.getCategories();
-        console.log('Categorías response:', categoriesRes);
         categoriesData = categoriesRes.data?.data || categoriesRes.data || [];
-        console.log('Categorías procesadas:', categoriesData);
       } catch (err) {
         console.error('Error cargando categorías:', err);
         throw new Error('No se pudieron cargar las categorías');
@@ -142,55 +118,25 @@ export default function UpkeepTicket() {
 
       try {
         const labelsRes = await LabelService.getLabels();
-        console.log('Labels response:', labelsRes);
         labelsData = labelsRes.data?.data || labelsRes.data || [];
       } catch (err) {
         console.error('Error cargando etiquetas:', err);
         throw new Error('No se pudieron cargar las etiquetas');
       }
 
-      setCategories(categoriesData);
-      setLabels(labelsData);
-
-      console.log('Datos cargados:', { categoriesData, labelsData });
-      console.log('Primera categoría completa:', categoriesData[0]);
-      console.log('Propiedades de la primera categoría:', Object.keys(categoriesData[0] || {}));
-
-      // Si estamos editando, cargar los datos del ticket
-      if (isEditing) {
-        const ticketRes = await TicketService.getTickets();
-        const ticketsData = ticketRes.data?.data || ticketRes.data || [];
-        const ticket = ticketsData.find(t => t.idTicket === parseInt(id));
-        
-        if (ticket) {
-          setFormData({
-            idTicket: ticket.idTicket,
-            Title: ticket.Title || '',
-            Description: ticket.Description || '',
-            CreationDate: ticket.CreationDate ? 
-              new Date(ticket.CreationDate).toISOString().slice(0, 16) : 
-              new Date().toISOString().slice(0, 16),
-            idCategory: ticket.idCategory || '',
-            idState: '1', // Siempre Pendiente
-            idLabel: ticket.idLabel || '',
-            idUser: ticket.idUser || '',
-            Image: null,
-            ImagePreview: ticket.Image || null
-          });
-          setIsUpdate(true); // Activar modo actualización
-          
-          // Filtrar etiquetas de la categoría del ticket
-          if (ticket.idCategory) {
-            const categoryLabels = labelsData.filter(label => 
-              label.idCategory === ticket.idCategory || 
-              (categoriesData.find(c => c.idCategory === ticket.idCategory)?.Labels || []).some(l => l.idLabel === label.idLabel)
-            );
-            setFilteredLabels(categoryLabels);
-          }
-        } else {
-          setError('Ticket no encontrado');
+      // Filtrar solo las 4 primeras categorías (principales)
+      const mainCategories = categoriesData.slice(0, 4).map(c => c.idCategory);
+      
+      // Filtrar labels que pertenezcan a esas categorías y eliminar duplicados
+      const uniqueLabels = new Map();
+      labelsData.forEach(label => {
+        if (mainCategories.includes(label.idCategory) && !uniqueLabels.has(label.idLabel)) {
+          uniqueLabels.set(label.idLabel, label);
         }
-      }
+      });
+
+      setCategories(categoriesData);
+      setLabels(Array.from(uniqueLabels.values()));
     } catch (err) {
       console.error('Error al cargar datos:', err);
       console.error('Detalle del error:', err.response || err.message);
@@ -259,22 +205,46 @@ export default function UpkeepTicket() {
    * Valida el formulario antes de enviar
    */
   const validateForm = () => {
+    // Validar título
     if (!formData.Title.trim()) {
-      setError('El título es obligatorio');
+      setError('El título del ticket es obligatorio');
       return false;
     }
+    
+    if (formData.Title.trim().length < 5) {
+      setError('El título debe tener al menos 5 caracteres');
+      return false;
+    }
+
+    // Validar descripción
     if (!formData.Description.trim()) {
       setError('La descripción es obligatoria');
       return false;
     }
-    if (!formData.idCategory) {
-      setError('Debe seleccionar una categoría');
+    
+    if (formData.Description.trim().length < 10) {
+      setError('La descripción debe tener al menos 10 caracteres');
       return false;
     }
+
+    // Validar etiqueta
     if (!formData.idLabel) {
       setError('Debe seleccionar una etiqueta');
       return false;
     }
+
+    // Validar que se haya asignado categoría automáticamente
+    if (!formData.idCategory) {
+      setError('No se pudo asignar la categoría automáticamente. Intente seleccionar otra etiqueta');
+      return false;
+    }
+
+    // Validar prioridad
+    if (!formData.Priority) {
+      setError('No se pudo asignar la prioridad automáticamente. Intente seleccionar otra etiqueta');
+      return false;
+    }
+
     return true;
   };
 
@@ -293,36 +263,40 @@ export default function UpkeepTicket() {
     setSuccess(null);
 
     try {
-      // Preparar datos para enviar
-      const ticketData = {
-        Title: formData.Title.trim(),
-        Description: formData.Description.trim(),
-        CreationDate: formData.CreationDate,
-        idCategory: parseInt(formData.idCategory),
-        idState: parseInt(formData.idState),
-        idLabel: parseInt(formData.idLabel),
-        idUser: parseInt(formData.idUser) || 1, // TODO: Obtener del contexto de usuario
-      };
+      // Si hay imagen, usar FormData
+      if (formData.Image) {
+        const formDataToSend = new FormData();
+        formDataToSend.append('title', formData.Title.trim());
+        formDataToSend.append('Description', formData.Description.trim());
+        formDataToSend.append('CreationDate', formData.CreationDate);
+        formDataToSend.append('idCategory', parseInt(formData.idCategory));
+        formDataToSend.append('idState', parseInt(formData.idState));
+        formDataToSend.append('Priority', parseInt(formData.Priority));
+        formDataToSend.append('idUser', parseInt(currentUser.idUser));
+        formDataToSend.append('image', formData.Image);
 
-      if (isUpdate) {
-        ticketData.idTicket = parseInt(formData.idTicket);
-        await TicketService.updateTicket(ticketData);
-        setSuccess('Ticket actualizado correctamente');
+        await TicketService.createTicket(formDataToSend);
       } else {
-        await TicketService.createTicket(ticketData);
-        setSuccess('Ticket creado correctamente');
-      }
+        // Sin imagen, enviar JSON normal
+        const ticketData = {
+          title: formData.Title.trim(),
+          Description: formData.Description.trim(),
+          CreationDate: formData.CreationDate,
+          idCategory: parseInt(formData.idCategory),
+          idState: parseInt(formData.idState),
+          Priority: parseInt(formData.Priority),
+          idUser: parseInt(currentUser.idUser),
+        };
 
-      // Redirigir después de 2 segundos
-      setTimeout(() => {
-        navigate('/tickets');
-      }, 2000);
+        await TicketService.createTicket(ticketData);
+      }
+      
+      navigate('/tickets', { state: { notification: { message: 'Ticket creado correctamente', type: 'success' } } });
 
     } catch (err) {
       console.error('Error al guardar ticket:', err);
       setError(err.response?.data?.message || 'Error al guardar el ticket');
-    } finally {
-      setSaving(false);
+      setSaving(false); // Solo resetear si hay error
     }
   };
 
@@ -354,17 +328,14 @@ export default function UpkeepTicket() {
             </div>
             <div className="flex-1">
               <CardTitle className="text-2xl">
-                {isUpdate ? 'Editar Ticket' : 'Crear Nuevo Ticket'}
+                Crear Nuevo Ticket
               </CardTitle>
               <CardDescription>
-                {isUpdate 
-                  ? 'Actualiza la información del ticket existente'
-                  : 'Complete el formulario para registrar un nuevo ticket en el sistema'
-                }
+                Complete el formulario para registrar un nuevo ticket en el sistema
               </CardDescription>
             </div>
-            <Badge variant={isUpdate ? "secondary" : "default"}>
-              {isUpdate ? `ID: ${id}` : 'Nuevo'}
+            <Badge variant="default">
+              Nuevo
             </Badge>
           </div>
         </CardHeader>
@@ -393,14 +364,21 @@ export default function UpkeepTicket() {
                 Título del Ticket
                 <span className="text-red-500">*</span>
               </Label>
-              <Input
-                id="title"
-                placeholder="Ej: Error en sistema de pagos"
-                value={formData.Title}
-                onChange={(e) => handleInputChange('Title', e.target.value)}
-                disabled={saving}
-                className="text-base"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  id="title"
+                  placeholder="Titulo del ticket"
+                  value={formData.Title}
+                  onChange={(e) => handleInputChange('Title', e.target.value.slice(0, 45))}
+                  disabled={saving}
+                  maxLength={45}
+                  className="w-full px-3 py-2 text-base border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                />
+                <div className="text-xs text-muted-foreground mt-1 text-right">
+                  {formData.Title.length}/45
+                </div>
+              </div>
             </div>
 
             {/* Descripción */}
@@ -410,132 +388,98 @@ export default function UpkeepTicket() {
                 Descripción Detallada
                 <span className="text-red-500">*</span>
               </Label>
-              <textarea
-                id="description"
-                placeholder="Describe el problema o solicitud con el mayor detalle posible..."
-                value={formData.Description}
-                onChange={(e) => handleInputChange('Description', e.target.value)}
-                disabled={saving}
-                rows={5}
-                className="w-full px-3 py-2 text-base border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-              />
+              <div className="relative">
+                <textarea
+                  id="description"
+                  placeholder="Describe el problema..."
+                  value={formData.Description}
+                  onChange={(e) => handleInputChange('Description', e.target.value.slice(0, 150))}
+                  disabled={saving}
+                  rows={5}
+                  maxLength={150}
+                  className="w-full px-3 py-2 text-base border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                />
+                <div className="text-xs text-muted-foreground mt-1 text-right">
+                  {formData.Description.length}/150
+                </div>
+              </div>
             </div>
 
             <Separator />
-
-            {/* Categoría con Accordion */}
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
-                <FolderKanban className="h-4 w-4" />
-                Categoría
+                <Star className="h-4 w-4" />
+                Etiqueta relacionada
                 <span className="text-red-500">*</span>
               </Label>
               
               <div className="space-y-3">
                 <div className="border rounded-md overflow-hidden transition-all duration-300">
-                  {!formData.idCategory ? (
-                    <>
-                      {/* Botón para abrir accordion */}
-                      <button
-                        type="button"
-                        className="w-full flex items-center justify-between px-4 py-3 bg-slate-800 text-white hover:bg-slate-700 transition-colors"
-                        onClick={() => setCategoryAccordionOpen(!categoryAccordionOpen)}
-                        disabled={saving}
-                      >
-                        <span className="text-sm font-medium">Seleccionar categoría</span>
-                        <span className="text-xs">{categoryAccordionOpen ? '▲' : '▼'}</span>
-                      </button>
-                      
-                      {/* Lista de categorías */}
-                      <div className={`transition-all duration-300 ease-in-out ${
-                        categoryAccordionOpen ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'
-                      }`}>
-                        <div className="border-t p-2 space-y-1 overflow-y-auto" style={{ maxHeight: '250px' }}>
-                          {categories.map((category) => {
-                            const displayName = category.Categoryname || category.CategoryName || `Categoría ${category.idCategory}`;
-                            return (
-                              <button
-                                key={category.idCategory}
-                                type="button"
-                                className="w-full text-left px-3 py-2 rounded transition-colors text-sm hover:bg-slate-800 hover:text-white"
-                                onClick={() => {
-                                  handleInputChange('idCategory', category.idCategory?.toString());
-                                  setCategoryAccordionOpen(false);
-                                }}
-                              >
-                                {displayName}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* Botón para cambiar categoría */}
-                      <button
-                        type="button"
-                        className="w-full flex items-center justify-between px-4 py-3 bg-slate-800 text-white hover:bg-slate-700 transition-colors"
-                        onClick={() => setCategoryAccordionOpen(!categoryAccordionOpen)}
-                        disabled={saving}
-                      >
-                        <span className="text-sm font-medium">
-                          {(() => {
-                            const cat = categories.find(c => c.idCategory == formData.idCategory);
-                            return cat?.Categoryname || 'Categoría seleccionada';
-                          })()}
-                        </span>
-                        <span className="text-xs">{categoryAccordionOpen ? '▲' : '▼'}</span>
-                      </button>
-                      
-                      {/* Lista de categorías con selección */}
-                      <div className={`transition-all duration-300 ease-in-out ${
-                        categoryAccordionOpen ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'
-                      }`}>
-                        <div className="border-t p-2 space-y-1 overflow-y-auto" style={{ maxHeight: '250px' }}>
-                          {categories.map((category) => {
-                            const displayName = category.Categoryname || category.CategoryName || `Categoría ${category.idCategory}`;
-                            const isSelected = formData.idCategory == category.idCategory;
-                            return (
-                              <button
-                                key={category.idCategory}
-                                type="button"
-                                className={`w-full text-left px-3 py-2 rounded transition-colors text-sm ${
-                                  isSelected 
-                                    ? 'bg-slate-800 text-white' 
-                                    : 'hover:bg-slate-800 hover:text-white'
-                                }`}
-                                onClick={() => {
-                                  handleInputChange('idCategory', category.idCategory?.toString());
-                                  setCategoryAccordionOpen(false);
-                                }}
-                              >
-                                {displayName}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </>
+                  {/* Botón para abrir/cambiar etiqueta */}
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between px-4 py-3 bg-accent/10 text-accent hover:bg-accent/20 transition-colors cursor-pointer disabled:cursor-not-allowed border border-accent/30"
+                    onClick={() => setLabelAccordionOpen(!labelAccordionOpen)}
+                    disabled={saving}
+                  >
+                    <span className="text-sm font-medium">
+                      {formData.idLabel 
+                        ? (() => {
+                            const label = labels.find(l => l.idLabel == formData.idLabel);
+                            return label?.Description || label?.LabelName || 'Etiqueta seleccionada';
+                          })()
+                        : 'Seleccione una etiqueta'
+                      }
+                    </span>
+                    <span className="text-xs">{labelAccordionOpen ? '▲' : '▼'}</span>
+                  </button>
+                  
+                  {/* Lista de etiquetas - renderizada solo una vez */}
+                  {labelAccordionOpen && (
+                    <div className="border-t p-2 space-y-1 overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:transparent [&::-webkit-scrollbar-thumb]:bg-yellow-600/60 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-yellow-600/80" 
+                      style={{ maxHeight: '250px', scrollbarWidth: 'thin', scrollbarColor: 'rgb(202 138 4 / 0.6) transparent' }}
+                    >
+                      {labels.map((label) => {
+                        const displayName = label.Description || label.LabelName || `Etiqueta ${label.idLabel}`;
+                        const isSelected = formData.idLabel == label.idLabel;
+                        return (
+                          <button
+                            key={`label-item-${label.idLabel}`}
+                            type="button"
+                            className={`w-full text-left px-3 py-2 rounded transition-colors text-sm ${
+                              isSelected 
+                                ? 'bg-accent text-accent-foreground' 
+                                : 'hover:bg-accent hover:text-accent-foreground'
+                            } cursor-pointer disabled:cursor-not-allowed`}
+                            onClick={() => {
+                              handleInputChange('idLabel', label.idLabel?.toString());
+                              setLabelAccordionOpen(false);
+                            }}
+                          >
+                            {displayName}
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
                 
-                {/* Etiquetas debajo cuando hay categoría seleccionada */}
-                {formData.idCategory && filteredLabels.length > 0 && (
-                  <div className="flex items-center gap-2 flex-wrap animate-in fade-in slide-in-from-left-2 duration-500">
-                    {filteredLabels.map(label => {
-                      const labelId = label.idLabel?.toString() || label.idLabel;
-                      const labelText = label.Description || label.LabelName || 'Etiqueta';
-                      
-                      return (
-                        <div
-                          key={labelId}
-                          className="px-3 py-1.5 rounded-md text-sm font-medium bg-primary text-primary-foreground"
-                        >
-                          {labelText}
-                        </div>
-                      );
-                    })}
+                {/* Categoría debajo cuando hay etiqueta seleccionada */}
+                {formData.idLabel && formData.idCategory && (
+                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-500">
+                    {/* Category badge with icon */}
+                    <div className="flex items-center gap-3 px-4 py-2 rounded-md text-sm font-medium bg-slate-800 text-white cursor-default">
+                      {/* Icon: folder/category */}
+                      <FolderKanban className="w-4 h-4 text-white/90" aria-hidden="true" />
+
+                      <div className="flex flex-col">
+                        <span className="text-xs text-slate-400">Categoría</span>
+                        <span className="leading-none">{(() => {
+                          const cat = categories.find(c => c.idCategory == formData.idCategory);
+                          return cat?.Categoryname || 'Categoría';
+                        })()}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -558,9 +502,10 @@ export default function UpkeepTicket() {
                     accept="image/*"
                     onChange={handleImageChange}
                     disabled={saving}
-                    className="text-base"
+                    className="text-base
+                    cursor-pointer disabled:cursor-not-allowed"
                   />
-                  <Button
+                  <Button className="cursor-pointer disabled:cursor-not-allowed"
                     type="button"
                     variant="outline"
                     size="icon"
@@ -619,6 +564,7 @@ export default function UpkeepTicket() {
                 variant="outline"
                 onClick={handleCancel}
                 disabled={saving}
+                className="cursor-pointer disabled:cursor-not-allowed"
               >
                 <X className="h-4 w-4 mr-2" />
                 Cancelar
@@ -626,6 +572,7 @@ export default function UpkeepTicket() {
               <Button
                 type="submit"
                 disabled={saving}
+                className="cursor-pointer disabled:cursor-not-allowed"
               >
                 {saving ? (
                   <>
@@ -635,7 +582,7 @@ export default function UpkeepTicket() {
                 ) : (
                   <>
                     <Save className="h-4 w-4 mr-2" />
-                    {isUpdate ? 'Actualizar Ticket' : 'Crear Ticket'}
+                    Crear Ticket
                   </>
                 )}
               </Button>

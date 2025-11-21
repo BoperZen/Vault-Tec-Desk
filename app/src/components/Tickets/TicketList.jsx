@@ -15,10 +15,10 @@ import {
   XCircle,
   Filter,
   Plus,
-  Edit,
 } from 'lucide-react';
 import { useRole } from '@/hooks/use-role';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useNotification } from '@/context/NotificationContext';
 import TicketService from '@/services/TicketService';
 import TechnicianService from '@/services/TechnicianService';
 import { Badge } from '@/components/ui/badge';
@@ -66,6 +66,7 @@ export default function TicketList() {
   const location = useLocation();
   const navigate = useNavigate();
   const { role } = useRole();
+  const { showNotification } = useNotification();
   const technicianId = import.meta.env.VITE_TECHNICIAN_ID;
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,78 +75,30 @@ export default function TicketList() {
   const [technicians, setTechnicians] = useState([]);
   const [filterType, setFilterType] = useState('all'); // 'all' o 'assigned'
   const [selectedTechnician, setSelectedTechnician] = useState('all');
+  const [imageModal, setImageModal] = useState({ open: false, url: '' });
+
+  // Mostrar notificación si viene del formulario de creación/edición
+  useEffect(() => {
+    if (location.state?.notification) {
+      const { message, type } = location.state.notification;
+      showNotification(message, type);
+      // Limpiar el estado para que no se muestre de nuevo al recargar
+      window.history.replaceState({}, document.title);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Solo ejecutar una vez al montar el componente
 
   useEffect(() => {
     loadTickets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, filterType, selectedTechnician]);
 
+
+
   /**
-   * Calcula el tiempo restante de SLA y el porcentaje de progreso para un ticket
-   * Basado en:
-   * - SLA de Resolución = Fecha creación + tiempo máximo de resolución
-   * - Se calcula el tiempo transcurrido desde la creación hasta ahora
-   * - Se compara con el tiempo máximo de resolución permitido
-   * 
-   * @param {string} creationDate - Fecha de creación del ticket
-   * @param {string} state - Estado actual del ticket
-   * @param {string} category - Categoría del ticket
-   * @returns {object} - Objeto con hoursRemaining (horas restantes hasta SLA) y progress (porcentaje de tiempo consumido)
+   * Las horas restantes ahora vienen calculadas desde el backend
+   * usando la hora del servidor de base de datos, no la hora del cliente
    */
-  const calculateSLA = (creationDate, state, category) => {
-    // SLA por categoría basado en la tabla real del sistema
-    // MaxResolutionTime en horas
-    const SLA_BY_CATEGORY = {
-      'Sistemas transaccionales': { answer: 1, resolution: 4 },      // idSLA 1
-      'Cajeros automaticos': { answer: 2, resolution: 6 },            // idSLA 2
-      'Fraudes y alertas Vault': { answer: 1, resolution: 2 },       // idSLA 3
-      'Atención al cliente Vault': { answer: 2, resolution: 8 },     // idSLA 4
-      'Default': { answer: 2, resolution: 8 }                         // Por defecto
-    };
-    
-    // Si está cerrado o resuelto, mostrar que ya cumplió el ciclo
-    if (state === 'Cerrado' || state === 'Resuelto') {
-      return { hoursRemaining: 0, progress: 100 };
-    }
-    
-    // Validar que la fecha de creación existe y es válida
-    if (!creationDate) {
-      return { hoursRemaining: 0, progress: 0 };
-    }
-    
-    // Obtener el SLA según la categoría
-    const slaConfig = SLA_BY_CATEGORY[category] || SLA_BY_CATEGORY['Default'];
-    
-    // Tiempo máximo de resolución en horas
-    const maxResolutionHours = slaConfig.resolution;
-    
-    // Calcular tiempo actual
-    const now = new Date();
-    const created = new Date(creationDate);
-    
-    // Verificar si la fecha es válida
-    if (isNaN(created.getTime())) {
-      return { hoursRemaining: 0, progress: 0 };
-    }
-    
-    // Calcular SLA de Resolución = Fecha creación + tiempo máximo de resolución
-    const slaResolutionDate = new Date(created.getTime() + (maxResolutionHours * 60 * 60 * 1000));
-    
-    // Calcular horas restantes hasta el SLA (negativo si ya venció)
-    const hoursRemaining = (slaResolutionDate - now) / (1000 * 60 * 60);
-    
-    // Calcular progreso: % de tiempo RESTANTE (inverso)
-    // 100% = recién creado (todo el tiempo disponible)
-    // 50% = mitad del tiempo
-    // 0% = se acabó el tiempo
-    // Negativo = vencido
-    const progress = Math.round((hoursRemaining / maxResolutionHours) * 100);
-    
-    return { 
-      hoursRemaining: Math.round(hoursRemaining * 10) / 10, // Redondear a 1 decimal
-      progress: Math.max(0, progress) // No mostrar negativos, mínimo 0%
-    };
-  };
 
   /**
    * Carga los tickets desde la API y aplica filtros según el rol del usuario
@@ -213,26 +166,7 @@ export default function TicketList() {
           }
         }
         
-        // Agregar cálculos de SLA a cada ticket
-        const ticketsWithSLA = allTickets.map(ticket => {
-          try {
-            const sla = calculateSLA(ticket.CreationDate, ticket.State, ticket.Category);
-            return {
-              ...ticket,
-              SLAHoursRemaining: sla.hoursRemaining,
-              SLAProgress: sla.progress
-            };
-          } catch (error) {
-            console.error('Error calculando SLA para ticket:', ticket.idTicket, error);
-            return {
-              ...ticket,
-              SLAHoursRemaining: 0,
-              SLAProgress: 0
-            };
-          }
-        });
-        
-        setTickets(ticketsWithSLA);
+        setTickets(allTickets);
         
         // Guardar técnicos si es admin
         if (role === 3 && responses[1]?.data.success) {
@@ -410,24 +344,44 @@ export default function TicketList() {
                         <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20">
                           {ticket.Category}
                         </Badge>
-                        <Badge 
-                          variant="outline" 
-                          className={`text-xs ${
-                            ticket.SLAHoursRemaining < 0 
-                              ? 'border-destructive/50 text-destructive bg-destructive/10' 
-                              : ticket.SLAHoursRemaining <= 0.5 
-                                ? 'border-destructive/50 text-destructive' 
-                                : ticket.SLAHoursRemaining <= 2 
-                                  ? 'border-yellow-500/50 text-yellow-600' 
-                                  : 'border-green-500/50 text-green-600'
-                          }`}
-                        >
-                          <Clock className="w-3 h-3 mr-1" />
-                          {ticket.SLAHoursRemaining < 0 
-                            ? `${Math.abs(ticket.SLAHoursRemaining)}h vencido` 
-                            : `${ticket.SLAHoursRemaining}h restantes`
-                          }
-                        </Badge>
+                        {ticket.SLA && (ticket.State !== 'Cerrado' && ticket.State !== 'Resuelto') && (
+                          <>
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${
+                                (() => {
+                                  const hoursRemaining = ticket.SLA.ResponseHoursRemaining;
+                                  if (hoursRemaining <= 0) return 'border-destructive/50 text-destructive bg-destructive/10';
+                                  if (hoursRemaining <= 0.5) return 'border-yellow-500/50 text-yellow-600';
+                                  return 'border-green-500/50 text-green-600';
+                                })()
+                              }`}
+                            >
+                              <Clock className="w-3 h-3 mr-1" />
+                              Resp: {(() => {
+                                const hoursRemaining = ticket.SLA.ResponseHoursRemaining;
+                                return hoursRemaining <= 0 ? 'Vencida' : `${hoursRemaining}h`;
+                              })()}
+                            </Badge>
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${
+                                (() => {
+                                  const hoursRemaining = ticket.SLA.ResolutionHoursRemaining;
+                                  if (hoursRemaining <= 0) return 'border-destructive/50 text-destructive bg-destructive/10';
+                                  if (hoursRemaining <= 2) return 'border-yellow-500/50 text-yellow-600';
+                                  return 'border-green-500/50 text-green-600';
+                                })()
+                              }`}
+                            >
+                              <Clock className="w-3 h-3 mr-1" />
+                              Resol: {(() => {
+                                const hoursRemaining = ticket.SLA.ResolutionHoursRemaining;
+                                return hoursRemaining <= 0 ? 'Vencida' : `${hoursRemaining}h`;
+                              })()}
+                            </Badge>
+                          </>
+                        )}
                       </div>
                       
                       <CardTitle className="text-xl text-left">
@@ -451,17 +405,6 @@ export default function TicketList() {
 
                     {/* Right: Actions */}
                     <div className="flex items-center gap-2 pt-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/tickets/edit/${ticket.idTicket}`);
-                        }}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
                       <ChevronDown 
                         className={`w-5 h-5 text-muted-foreground transition-transform duration-300 ${
                           expandedTicket === ticket.idTicket ? 'transform rotate-180' : ''
@@ -528,39 +471,42 @@ export default function TicketList() {
                             <p className="text-xl font-bold text-primary">{ticket.StateRecords?.length || 0}</p>
                             <p className="text-[10px] text-muted-foreground">Cambios</p>
                           </div>
-                          <div className="text-center p-2 rounded-lg bg-background/50">
-                            <p className={`text-xl font-bold ${
-                              ticket.SLAHoursRemaining < 0 
-                                ? 'text-destructive' 
-                                : ticket.SLAHoursRemaining <= 2 
-                                  ? 'text-yellow-500' 
-                                  : 'text-green-500'
-                            }`}>
-                              {ticket.SLAHoursRemaining < 0 
-                                ? `${Math.abs(ticket.SLAHoursRemaining)}h` 
-                                : `${ticket.SLAHoursRemaining}h`
-                              }
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {ticket.SLAHoursRemaining < 0 ? 'Vencido' : 'Restantes'}
-                            </p>
-                          </div>
-                          <div className="text-center p-2 rounded-lg bg-background/50">
-                            <p className="text-xl font-bold text-primary">
-                              {(() => {
-                                // Calcular fecha límite SLA
-                                const created = new Date(ticket.CreationDate);
-                                const slaHours = ticket.Category === 'Sistemas transaccionales' ? 4
-                                  : ticket.Category === 'Cajeros automaticos' ? 6
-                                  : ticket.Category === 'Fraudes y alertas Vault' ? 2
-                                  : ticket.Category === 'Atención al cliente Vault' ? 8
-                                  : 8;
-                                const deadline = new Date(created.getTime() + (slaHours * 60 * 60 * 1000));
-                                return deadline.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
-                              })()}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">Límite</p>
-                          </div>
+                          {ticket.SLA && (
+                            <>
+                              <div className="text-center p-2 rounded-lg bg-background/50">
+                                <p className="text-xs font-semibold text-primary mb-1">Respuesta</p>
+                                <p className="text-lg font-bold text-primary">
+                                  {new Date(ticket.SLA.ResponseDeadline).toLocaleString('es-ES', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  })}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground mt-1">
+                                  {new Date(ticket.SLA.ResponseDeadline).toLocaleDateString('es-ES', {
+                                    day: '2-digit',
+                                    month: '2-digit'
+                                  })}
+                                </p>
+                              </div>
+                              <div className="text-center p-2 rounded-lg bg-background/50">
+                                <p className="text-xs font-semibold text-green-600 mb-1">Resolución</p>
+                                <p className="text-lg font-bold text-green-600">
+                                  {new Date(ticket.SLA.ResolutionDeadline).toLocaleString('es-ES', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  })}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground mt-1">
+                                  {new Date(ticket.SLA.ResolutionDeadline).toLocaleDateString('es-ES', {
+                                    day: '2-digit',
+                                    month: '2-digit'
+                                  })}
+                                </p>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -596,9 +542,32 @@ export default function TicketList() {
                                 </div>
                               <p className="text-xs text-muted-foreground">{record.Observation}</p>
                               {record.Images?.length > 0 && (
-                                <div className="flex items-center gap-1 text-xs text-primary mt-1">
-                                  <ImageIcon className="w-3 h-3" />
-                                  <span>{record.Images.length} imagen(es)</span>
+                                <div className="mt-2 space-y-2">
+                                  <div className="flex items-center gap-1 text-xs text-primary">
+                                    <ImageIcon className="w-3 h-3" />
+                                    <span>{record.Images.length} imagen(es)</span>
+                                  </div>
+                                  <div className="flex gap-2 flex-wrap">
+                                    {record.Images.filter(img => img.ImageBase64 || img.ImagePath).map((img) => {
+                                      const imgSrc = img.ImageBase64 
+                                        ? `data:image/jpeg;base64,${img.ImageBase64}`
+                                        : `http://localhost/Vault-Tec-Desk/api/${img.ImagePath}`;
+                                      return (
+                                        <img
+                                          key={`img-${record.idStateRecord}-${img.idImage}`}
+                                          src={imgSrc}
+                                          alt={`Evidencia ${img.idImage}`}
+                                          className="w-16 h-16 object-cover rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                                          onClick={() => setImageModal({ open: true, url: imgSrc })}
+                                          onError={(e) => {
+                                            console.error('Error cargando imagen:', img.idImage, 'Tipo:', img.ImageBase64 ? 'Base64' : 'Path');
+                                            e.target.onerror = null;
+                                            e.target.style.display = 'none';
+                                          }}
+                                        />
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -646,6 +615,29 @@ export default function TicketList() {
           );
         })}
       </div>
+
+      {/* Modal de Imagen */}
+      {imageModal.open && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setImageModal({ open: false, url: '' })}
+        >
+          <div className="relative max-w-4xl max-h-[90vh]">
+            <button
+              className="absolute -top-10 right-0 text-white hover:text-gray-300 text-2xl font-bold"
+              onClick={() => setImageModal({ open: false, url: '' })}
+            >
+              ×
+            </button>
+            <img
+              src={imageModal.url}
+              alt="Vista ampliada"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

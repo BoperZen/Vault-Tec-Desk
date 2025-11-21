@@ -47,6 +47,16 @@ class TicketService {
   }
 
   /**
+   * Obtiene un ticket específico por su ID
+   * GET http://localhost:81/Vault-Tec-Desk/api/ticket/{id}
+   * @param {number} ticketId - ID del ticket
+   * @returns {Promise} - Promise con la respuesta de axios
+   */
+  getTicket(ticketId) {
+    return axios.get(`${BASE_URL}/${ticketId}`);
+  }
+
+  /**
    * Elimina un ticket del sistema
    * DELETE http://localhost:81/Vault-Tec-Desk/api/ticket/{id}
    * @param {number} ticketId - ID del ticket a eliminar

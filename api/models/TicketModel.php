@@ -14,13 +14,8 @@ class TicketModel
      */
     public function all()
     {
-        $categoryM = new CategoryModel();
-        $stateM = new StateModel();
-        $userM = new UserModel();
-        $assignM = new AssignModel();
-        
         // Consulta simple de tickets
-        $vSql = "SELECT * FROM Ticket ORDER BY idTicket DESC";
+        $vSql = "SELECT * FROM Ticket ORDER BY idTicket ASC";
         $vResultado = $this->enlace->ExecuteSQL($vSql);
         
         // Construir cada ticket con sus relaciones
@@ -45,6 +40,8 @@ class TicketModel
         $userM = new UserModel();
         $assignM = new AssignModel();
         $labelM = new LabelModel();
+        $priorityM = new PriorityModel();
+        $slaM = new SlaModel();
         
         // Consulta básica del ticket
         $vSql = "SELECT * FROM Ticket WHERE idTicket = $idTicket";
@@ -53,10 +50,56 @@ class TicketModel
         if (!empty($vResultado) && is_array($vResultado)) {
             $vResultado = $vResultado[0];
             
-            // Agregar Category (nombre)
+            // Normalizar title a Title para compatibilidad con frontend
+            if (isset($vResultado->title)) {
+                $vResultado->Title = $vResultado->title;
+            }
+            
+            // Agregar Category (nombre) y datos de SLA
             if (isset($vResultado->idCategory) && $vResultado->idCategory) {
                 $category = $categoryM->get($vResultado->idCategory);
                 $vResultado->Category = $category ? $category->Categoryname : null;
+                
+                // Obtener SLA de la categoría (intentar ambos formatos de nombre)
+                $idSLA = null;
+                if ($category && isset($category->idSLA)) {
+                    $idSLA = $category->idSLA;
+                } elseif ($category && isset($category->idSla)) {
+                    $idSLA = $category->idSla;
+                }
+                
+                if ($idSLA) {
+                    $sla = $slaM->get($idSLA);
+                    if ($sla) {
+                        $vResultado->SLA = (object)[
+                            'ResponseTime' => (int)$sla->MaxAnswerTime,
+                            'ResolutionTime' => (int)$sla->MaxResolutionTime
+                        ];
+                        
+                        // Calcular fechas SLA basadas en fecha de creación
+                        if (isset($vResultado->CreationDate)) {
+                            $creationDate = new DateTime($vResultado->CreationDate);
+                            $now = new DateTime(); // Hora del servidor de BD
+                            
+                            // SLA de Respuesta = fecha creación + tiempo máximo de respuesta (en horas)
+                            $responseSLA = clone $creationDate;
+                            $responseSLA->add(new DateInterval('PT' . $sla->MaxAnswerTime . 'H'));
+                            $vResultado->SLA->ResponseDeadline = $responseSLA->format('Y-m-d H:i:s');
+                            
+                            // SLA de Resolución = fecha creación + tiempo máximo de resolución (en horas)
+                            $resolutionSLA = clone $creationDate;
+                            $resolutionSLA->add(new DateInterval('PT' . $sla->MaxResolutionTime . 'H'));
+                            $vResultado->SLA->ResolutionDeadline = $resolutionSLA->format('Y-m-d H:i:s');
+                            
+                            // Calcular horas restantes desde el servidor (no desde el cliente)
+                            $responseSeconds = $responseSLA->getTimestamp() - $now->getTimestamp();
+                            $resolutionSeconds = $resolutionSLA->getTimestamp() - $now->getTimestamp();
+                            
+                            $vResultado->SLA->ResponseHoursRemaining = round($responseSeconds / 3600, 1);
+                            $vResultado->SLA->ResolutionHoursRemaining = round($resolutionSeconds / 3600, 1);
+                        }
+                    }
+                }
             } else {
                 $vResultado->Category = null;
             }
@@ -67,6 +110,14 @@ class TicketModel
                 $vResultado->State = $state ? $state->Description : null;
             } else {
                 $vResultado->State = null;
+            }
+            
+            // Agregar Priority (nombre)
+            if (isset($vResultado->Priority) && $vResultado->Priority) {
+                $priority = $priorityM->get($vResultado->Priority);
+                $vResultado->PriorityName = $priority ? $priority->Description : null;
+            } else {
+                $vResultado->PriorityName = null;
             }
             
             // Agregar Label (nombre)
@@ -100,9 +151,6 @@ class TicketModel
             if ($vResultado->State === 'Cerrado') {
                 $vResultado->ServiceReview = $this->getServiceReview($idTicket);
             }
-            
-            // Renombrar DateOfEntry a CreationDate para consistencia con el frontend
-            $vResultado->CreationDate = $vResultado->DateOfEntry;
             
             return $vResultado;
         }
@@ -185,15 +233,10 @@ class TicketModel
     public function create($objeto)
     {
         // Validar campos requeridos
-        if (empty($objeto->Title) || empty($objeto->Description) || 
+        if (empty($objeto->title) || empty($objeto->Description) || 
             empty($objeto->idCategory) || empty($objeto->idUser)) {
             throw new Exception("Faltan campos requeridos para crear el ticket");
         }
-
-        // Preparar fecha de creación
-        $dateOfEntry = isset($objeto->CreationDate) && !empty($objeto->CreationDate) 
-            ? date('Y-m-d H:i:s', strtotime($objeto->CreationDate))
-            : date('Y-m-d H:i:s');
 
         // Estado por defecto: Pendiente (idState = 1)
         $idState = isset($objeto->idState) ? (int)$objeto->idState : 1;
@@ -201,36 +244,45 @@ class TicketModel
         // Priority por defecto
         $priority = isset($objeto->Priority) ? (int)$objeto->Priority : 3;
 
-        // Label (opcional)
-        $idLabel = isset($objeto->idLabel) && !empty($objeto->idLabel) 
-            ? (int)$objeto->idLabel 
-            : 'NULL';
-
-        // Consulta SQL para insertar
-        $vSql = "INSERT INTO Ticket (Title, Description, DateOfEntry, Priority, idCategory, idState, idUser, idLabel)
+        // Consulta SQL para insertar - usar NOW() de MySQL para respetar zona horaria
+        $vSql = "INSERT INTO Ticket (title, Description, CreationDate, Priority, idCategory, idState, idUser)
                  VALUES (
-                     '{$this->enlace->escapeString($objeto->Title)}',
+                     '{$this->enlace->escapeString($objeto->title)}',
                      '{$this->enlace->escapeString($objeto->Description)}',
-                     '$dateOfEntry',
+                     NOW(),
                      $priority,
                      {$objeto->idCategory},
                      $idState,
-                     {$objeto->idUser},
-                     $idLabel
+                     {$objeto->idUser}
                  )";
 
         // Ejecutar insert y obtener el ID del ticket creado
         $idTicket = $this->enlace->executeSQL_DML_last($vSql);
 
-        // Crear el primer StateRecord (Ticket creado)
-        $vSqlStateRecord = "INSERT INTO StateRecord (idTicket, idState, Observation, DateOfChange)
+        // Crear el primer StateRecord (Ticket creado) - usar NOW() de MySQL
+        $vSqlStateRecord = "INSERT INTO StateRecord (idTicket, idState, idUser, Observation, DateOfChange)
                             VALUES (
                                 $idTicket,
                                 $idState,
+                                {$objeto->idUser},
                                 'Ticket creado',
-                                '$dateOfEntry'
+                                NOW()
                             )";
-        $this->enlace->executeSQL_DML($vSqlStateRecord);
+        $idStateRecord = $this->enlace->executeSQL_DML_last($vSqlStateRecord);
+
+        // Si hay imágenes, crearlas vinculadas al StateRecord
+        if (isset($objeto->images) && is_array($objeto->images) && !empty($objeto->images)) {
+            $imageM = new ImageModel();
+            foreach ($objeto->images as $imagePath) {
+                if (!empty($imagePath)) {
+                    $imageData = (object)[
+                        'Image' => $imagePath,
+                        'idStateRecord' => $idStateRecord
+                    ];
+                    $imageM->create($imageData);
+                }
+            }
+        }
 
         // Retornar el ticket completo creado
         return $this->get($idTicket);
@@ -253,8 +305,8 @@ class TicketModel
         // Construir la consulta UPDATE solo con los campos proporcionados
         $updates = [];
 
-        if (isset($objeto->Title)) {
-            $updates[] = "Title = '{$this->enlace->escapeString($objeto->Title)}'";
+        if (isset($objeto->title)) {
+            $updates[] = "title = '{$this->enlace->escapeString($objeto->title)}'";
         }
 
         if (isset($objeto->Description)) {
@@ -279,10 +331,14 @@ class TicketModel
                     ? $this->enlace->escapeString($objeto->StateObservation)
                     : 'Estado actualizado';
                 
-                $vSqlStateRecord = "INSERT INTO StateRecord (idTicket, idState, Observation, DateOfChange)
+                // Obtener idUser del ticket actual o del objeto
+                $idUserForRecord = isset($objeto->idUser) ? (int)$objeto->idUser : (int)$oldTicket->idUser;
+                
+                $vSqlStateRecord = "INSERT INTO StateRecord (idTicket, idState, idUser, Observation, DateOfChange)
                                     VALUES (
                                         $idTicket,
                                         $newState,
+                                        $idUserForRecord,
                                         '$observation',
                                         NOW()
                                     )";

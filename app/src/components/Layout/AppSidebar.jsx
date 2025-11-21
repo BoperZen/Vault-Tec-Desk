@@ -346,13 +346,13 @@ export function AppSidebar() {
                                         {ticket.State}
                                       </Badge>
                                     </div>
-                                    <p className="text-xs font-medium line-clamp-2 mb-2 group-hover:text-primary transition-colors">
+                                    {/*<p className="text-xs font-medium line-clamp-2 mb-2 group-hover:text-primary transition-colors">
                                       {ticket.Title}
-                                    </p>
+                                    </p>*/}
                                     <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                                       <Clock className="w-3 h-3" />
                                       <span>
-                                        {new Date(ticket.CreationDate || ticket.DateOfEntry).toLocaleDateString('es-ES', {
+                                        {new Date(ticket.CreationDate).toLocaleDateString('es-ES', {
                                           day: '2-digit',
                                           month: 'short'
                                         })}
