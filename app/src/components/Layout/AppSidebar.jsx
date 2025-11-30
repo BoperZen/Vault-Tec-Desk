@@ -1,6 +1,5 @@
-import { Home, Ticket, Users, FolderKanban, Settings, ChevronRight, ChevronLeft, Calendar, Clock } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { Home, Ticket, Users, FolderKanban, Settings, ChevronRight, ChevronLeft, Calendar, Calendar1, Calendar1Icon, TicketCheck } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { useRole } from '@/hooks/use-role';
 import { cn } from '@/lib/utils';
 import {
@@ -12,18 +11,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -31,7 +21,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import TicketService from '@/services/TicketService';
 
 /**
  * Obtiene los items del menú según el rol del usuario
@@ -55,7 +44,6 @@ const getMenuItems = (role) => {
         icon: Ticket,
         url: '/tickets',
         description: 'Mis tickets asignados',
-        hasTicketsList: true, // Indicador para mostrar lista de tickets
       },
       {
         title: 'Calendario',
@@ -75,7 +63,6 @@ const getMenuItems = (role) => {
         icon: Ticket,
         url: '/tickets',
         description: 'Gestión de tickets',
-        hasTicketsList: true, // Indicador para mostrar lista de tickets
       },
       {
         title: 'Técnicos',
@@ -106,7 +93,6 @@ const getMenuItems = (role) => {
       icon: Ticket,
       url: '/tickets',
       description: 'Mis tickets',
-      hasTicketsList: true, // Indicador para mostrar lista de tickets
     },
     {
       title: 'Calendario',
@@ -124,29 +110,10 @@ const settingsItem = {
   description: 'Ajustes del sistema',
 };
 
-/**
- * Obtiene las clases CSS de color según el estado del ticket
- * @param {string} state - Estado del ticket (Pendiente, Asignado, En Proceso, Resuelto, Cerrado)
- * @returns {string} - Clases CSS para el badge del estado
- */
-const getStateColor = (state) => {
-  const colors = {
-    'Pendiente': 'bg-red-500/10 text-red-600 border-red-500/20',
-    'Asignado': 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
-    'En Proceso': 'bg-orange-500/10 text-orange-600 border-orange-500/20',
-    'Resuelto': 'bg-green-500/10 text-green-600 border-green-500/20',
-    'Cerrado': 'bg-gray-500/10 text-gray-600 border-gray-500/20',
-  };
-  return colors[state] || 'bg-muted text-muted-foreground';
-};
-
 export function AppSidebar() {
   const location = useLocation();
-  const navigate = useNavigate();
   const { open, toggleSidebar } = useSidebar();
   const { role } = useRole();
-  const [ticketsMenuOpen, setTicketsMenuOpen] = useState(false);
-  const [recentTickets, setRecentTickets] = useState([]);
 
   const menuItems = getMenuItems(role);
 
@@ -158,68 +125,6 @@ export function AppSidebar() {
    * - Admin: Todos los tickets
    * Limita los resultados a los 10 tickets más recientes
    */
-  useEffect(() => {
-    const loadTickets = async () => {
-      try {
-        const response = await TicketService.getTickets();
-        if (response.data.success) {
-          let allTickets = response.data.data;
-          const technicianId = import.meta.env.VITE_TECHNICIAN_ID;
-          const userId = import.meta.env.VITE_USER_ID;
-          
-          // Filtrar según el rol
-          if (role === 1) {
-            // Técnicos: solo sus tickets asignados
-            allTickets = allTickets.filter(
-              ticket => parseInt(ticket.Assign?.Technician?.idTechnician) === parseInt(technicianId)
-            );
-          } else if (role === 2) {
-            // Clientes: solo sus propios tickets
-            allTickets = allTickets.filter(
-              ticket => parseInt(ticket.User?.idUser) === parseInt(userId)
-            );
-          }
-          // Admin (role 3): todos los tickets
-          
-          // Limitar a los últimos 10 tickets
-          const recent = allTickets.slice(0, 10);
-          setRecentTickets(recent);
-        }
-      } catch (error) {
-        console.error('Error loading tickets:', error);
-      }
-    };
-    
-    if (open) {
-      loadTickets();
-    }
-  }, [open, role]);
-
-  // Cerrar el menú de tickets cuando el sidebar se colapsa
-  useEffect(() => {
-    if (!open) {
-      setTicketsMenuOpen(false);
-    }
-  }, [open]);
-
-  /**
-   * Abre automáticamente el acordeón de tickets cuando se navega a /tickets
-   * y el sidebar está abierto
-   */
-  useEffect(() => {
-    if (open && location.pathname.startsWith('/tickets')) {
-      setTicketsMenuOpen(true);
-    }
-  }, [location.pathname, open]);
-
-  /**
-   * Maneja el clic en un ticket del acordeón del sidebar
-   * Navega a la página de tickets sin parámetros adicionales
-   */
-  const handleTicketClick = () => {
-    navigate(`/tickets`);
-  };
-
   return (
     <Sidebar collapsible="icon" className="border-r border-border/50 bg-surface group/sidebar relative fixed left-0 top-0 h-screen">
       {/* Logo Container - Se muestra cuando el sidebar está abierto */}
@@ -268,111 +173,6 @@ export function AppSidebar() {
             <SidebarMenu className="space-y-2 group-data-[collapsible=icon]:space-y-3">
               {menuItems.map((item) => {
                 const isActive = location.pathname === item.url;
-                
-                // Si tiene lista de tickets, mostrar acordeón con tickets
-                if (item.hasTicketsList) {
-                  return (
-                    <Collapsible 
-                      key={item.title} 
-                      asChild 
-                      open={ticketsMenuOpen}
-                      onOpenChange={(isOpen) => {
-                        // Solo permitir cambios si el sidebar está abierto
-                        if (open) {
-                          setTicketsMenuOpen(isOpen);
-                        }
-                      }}
-                    >
-                      <SidebarMenuItem>
-                        {open ? (
-                          <div className={`h-10 px-3 rounded-lg transition-all duration-200 flex items-center ${
-                            isActive 
-                              ? 'bg-primary/10 text-primary hover:bg-primary/15 shadow-sm' 
-                              : 'hover:bg-muted/80'
-                          }`}>
-                            {/* Link que lleva a /tickets */}
-                            <Link to={item.url} className="flex items-center flex-1 min-w-0">
-                              <item.icon className="w-4 h-4 shrink-0 mr-3" />
-                              <span className="font-medium text-sm flex-1">{item.title}</span>
-                            </Link>
-                            {/* Botón del acordeón separado */}
-                            <CollapsibleTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-auto p-1 hover:bg-transparent shrink-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                }}
-                              >
-                                <ChevronRight className={cn(
-                                  "w-4 h-4 transition-transform duration-200",
-                                  ticketsMenuOpen && "rotate-90"
-                                )} />
-                              </Button>
-                            </CollapsibleTrigger>
-                          </div>
-                        ) : (
-                          <SidebarMenuButton
-                            asChild
-                            tooltip={item.title}
-                            className={`h-10 px-3 rounded-lg transition-all duration-200 group flex items-center ${
-                              isActive 
-                                ? 'bg-primary/10 text-primary hover:bg-primary/15 shadow-sm' 
-                                : 'hover:bg-muted/80'
-                            }`}
-                          >
-                            <Link to={item.url}>
-                              <item.icon className="w-4 h-4 shrink-0 mr-3" />
-                            </Link>
-                          </SidebarMenuButton>
-                        )}
-                        <CollapsibleContent className="mt-2">
-                          <SidebarMenuSub className="ml-8 space-y-1">
-                            {/* Lista de tickets con scroll */}
-                            <div className="max-h-[320px] overflow-y-auto pr-2 space-y-2 subtle-scroll">
-                              {recentTickets.length > 0 ? (
-                                recentTickets.map((ticket) => (
-                                  <button
-                                    key={ticket.idTicket}
-                                    onClick={() => handleTicketClick(ticket.idTicket)}
-                                    className="w-full text-left p-3 rounded-lg border border-border/50 hover:border-primary/50 hover:bg-muted/50 transition-all duration-200 group"
-                                  >
-                                    <div className="flex items-start justify-between gap-2 mb-2">
-                                      <Badge variant="outline" className="text-[10px] font-mono">
-                                        #{ticket.idTicket}
-                                      </Badge>
-                                      <Badge className={cn("text-[10px]", getStateColor(ticket.State))}>
-                                        {ticket.State}
-                                      </Badge>
-                                    </div>
-                                    {/*<p className="text-xs font-medium line-clamp-2 mb-2 group-hover:text-primary transition-colors">
-                                      {ticket.Title}
-                                    </p>*/}
-                                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                      <Clock className="w-3 h-3" />
-                                      <span>
-                                        {new Date(ticket.CreationDate).toLocaleDateString('es-ES', {
-                                          day: '2-digit',
-                                          month: 'short'
-                                        })}
-                                      </span>
-                                    </div>
-                                  </button>
-                                ))
-                              ) : (
-                                <div className="text-xs text-muted-foreground text-center py-4">
-                                  No hay tickets disponibles
-                                </div>
-                              )}
-                            </div>
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </SidebarMenuItem>
-                    </Collapsible>
-                  );
-                }
-
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
