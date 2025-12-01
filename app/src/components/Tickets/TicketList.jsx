@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Clock, 
   User, 
@@ -15,16 +15,19 @@ import {
   XCircle,
   Filter,
   Plus,
+  Edit3,
 } from 'lucide-react';
 import { useRole } from '@/hooks/use-role';
+import { useUser } from '@/context/UserContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useNotification } from '@/context/NotificationContext';
 import TicketService from '@/services/TicketService';
 import TechnicianService from '@/services/TechnicianService';
+import StateService from '@/services/StateService';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { StateProgress } from '@/components/ui/state-progress';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,6 +42,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  formatUtcToLocalDate,
+  formatUtcToLocalTime,
+  formatUtcToLocalDateTime,
+} from '@/lib/utils';
+import StateUpdateDialog from '@/components/Tickets/StateUpdateDialog';
+import AssignmentDialog from '@/components/Tickets/AssignmentDialog';
+import AssignService from '@/services/AssignService';
 
 const getStateColor = (state) => {
   const colors = {
@@ -62,12 +73,40 @@ const getStateIcon = (state) => {
   return icons[state] || { icon: AlertCircle, color: 'text-muted-foreground bg-muted' };
 };
 
+const formatSlaTime = (dateString) => formatUtcToLocalTime(dateString);
+
+const formatSlaDate = (dateString) => formatUtcToLocalDate(dateString);
+
+const getTechnicianInitials = (name = '') => {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('') || '—';
+};
+
+const formatDateTimeForDB = (value) => {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    return formatDateTimeForDB(new Date());
+  }
+
+  const pad = (num) => String(num).padStart(2, '0');
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+         `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
 export default function TicketList() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { role } = useRole();
+  const { role, isLoadingRole } = useRole();
+  const { currentUser, technicianProfile, isTechnicianLoading } = useUser();
   const { showNotification } = useNotification();
-  const technicianId = import.meta.env.VITE_TECHNICIAN_ID;
+  const technicianId = technicianProfile?.idTechnician;
+  const technicianNumericId = Number(technicianId);
+  const currentUserId = currentUser?.idUser;
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -76,6 +115,16 @@ export default function TicketList() {
   const [filterType, setFilterType] = useState('all'); // 'all' o 'assigned'
   const [selectedTechnician, setSelectedTechnician] = useState('all');
   const [imageModal, setImageModal] = useState({ open: false, url: '' });
+  const [states, setStates] = useState([]);
+  const [isStateDialogOpen, setIsStateDialogOpen] = useState(false);
+  const [stateDialogTicket, setStateDialogTicket] = useState(null);
+  const [isUpdatingState, setIsUpdatingState] = useState(false);
+  const [pendingTicketId, setPendingTicketId] = useState(null);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [assignDialogTicket, setAssignDialogTicket] = useState(null);
+  const [isAssigning, setIsAssigning] = useState(false);
+  const canCreateTickets = !isLoadingRole && (role === 2 || role === 3);
+  const isAdmin = role === 3;
 
   // Mostrar notificación si viene del formulario de creación/edición
   useEffect(() => {
@@ -89,9 +138,76 @@ export default function TicketList() {
   }, []); // Solo ejecutar una vez al montar el componente
 
   useEffect(() => {
+    if (isLoadingRole) return;
+    if (role === 1 && (isTechnicianLoading || !Number.isFinite(technicianNumericId))) return;
+    if (role === 2 && !currentUserId) return;
     loadTickets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname, filterType, selectedTechnician]);
+  }, [
+    location.pathname,
+    filterType,
+    selectedTechnician,
+    role,
+    isLoadingRole,
+    technicianId,
+    isTechnicianLoading,
+    currentUserId,
+    technicianNumericId,
+  ]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStates = async () => {
+      try {
+        const response = await StateService.getStates();
+        if (response.data?.success && isMounted) {
+          setStates(response.data.data || []);
+        }
+      } catch (stateError) {
+        console.error('Error al cargar estados:', stateError);
+      }
+    };
+
+    fetchStates();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const ticketParam = params.get('ticketId');
+    if (ticketParam) {
+      const numericId = Number(ticketParam);
+      if (Number.isFinite(numericId)) {
+        setPendingTicketId(numericId);
+      }
+    }
+  }, [location.search]);
+
+  useEffect(() => {
+    if (!pendingTicketId || tickets.length === 0) {
+      return;
+    }
+
+    const match = tickets.find((ticket) => Number(ticket.idTicket) === Number(pendingTicketId));
+    if (!match) {
+      return;
+    }
+
+    setExpandedTicket(match.idTicket);
+    const node = document.getElementById(`ticket-${match.idTicket}`);
+    if (node) {
+      node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      node.classList.add('ring', 'ring-primary/40', 'ring-offset-2', 'ring-offset-background');
+      setTimeout(() => {
+        node.classList.remove('ring', 'ring-primary/40', 'ring-offset-2', 'ring-offset-background');
+      }, 2000);
+    }
+
+    setPendingTicketId(null);
+  }, [pendingTicketId, tickets]);
 
 
 
@@ -125,14 +241,23 @@ export default function TicketList() {
         
         // Filtrar tickets según el rol
         if (role === 1) {
+          if (!Number.isFinite(technicianNumericId)) {
+            setTickets([]);
+            return;
+          }
           // Técnicos: Ver solo sus tickets asignados (siempre)
           allTickets = allTickets.filter(
-            ticket => parseInt(ticket.Assign?.Technician?.idTechnician) === parseInt(technicianId)
+            ticket => Number(ticket.Assign?.Technician?.idTechnician) === technicianNumericId
           );
         } else if (role === 2) {
           // Clientes: Ver SIEMPRE solo sus propios tickets (sin importar la ruta)
-          allTickets = allTickets.filter(
-            ticket => parseInt(ticket.User?.idUser) === parseInt(import.meta.env.VITE_USER_ID)
+          const clientId = Number(currentUserId);
+            if (!Number.isFinite(clientId)) {
+              setTickets([]);
+              return;
+            }
+            allTickets = allTickets.filter(
+            ticket => Number(ticket.User?.idUser) === clientId
           );
         } else if (role === 3) {
           // Admin: Aplicar filtros
@@ -182,6 +307,145 @@ export default function TicketList() {
       setError('Error al conectar con el servidor');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getAllowedStatesForTicket = (ticket) => {
+    if (!ticket || !Array.isArray(states) || states.length === 0) {
+      return [];
+    }
+
+    const currentStateId = Number(ticket.idState);
+    if (!Number.isFinite(currentStateId)) {
+      return [];
+    }
+
+    if (role === 3) {
+      return states;
+    }
+
+    if (role === 1) {
+      const transitions = {
+        2: [3],
+        3: [4],
+      };
+      const allowedIds = transitions[currentStateId] || [];
+      return states.filter((state) => allowedIds.includes(Number(state.idState)));
+    }
+
+    if (role === 2) {
+      if (currentStateId === 4) {
+        return states.filter((state) => Number(state.idState) === 5);
+      }
+      return [];
+    }
+
+    return [];
+  };
+
+  const dialogStateOptions = useMemo(
+    () => getAllowedStatesForTicket(stateDialogTicket),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stateDialogTicket, states, role]
+  );
+
+  const openStateDialog = (ticket) => {
+    const allowedStates = getAllowedStatesForTicket(ticket);
+    if (allowedStates.length === 0) {
+      showNotification('No hay cambios de estado disponibles para este ticket', 'warning');
+      return;
+    }
+
+    setStateDialogTicket(ticket);
+    setIsStateDialogOpen(true);
+  };
+
+  const openAssignDialog = (ticket) => {
+    setAssignDialogTicket(ticket);
+    setIsAssignDialogOpen(true);
+  };
+
+  const handleAssignment = async (assignmentData) => {
+    if (!assignDialogTicket || !currentUser?.idUser) {
+      showNotification('Error al procesar la asignación', 'error');
+      return;
+    }
+
+    setIsAssigning(true);
+    try {
+      const payload = {
+        idTicket: assignDialogTicket.idTicket,
+        StateObservation: assignmentData.observation,
+        idUser: Number(currentUser.idUser),
+        DateOfAssign: formatDateTimeForDB(),
+        idTechnician: assignmentData.technicianId, // Siempre incluir el técnico
+        PriorityScore: assignmentData.priorityScore, // Puntaje de prioridad
+      };
+
+      if (assignmentData.evidence) {
+        payload.StateImages = [assignmentData.evidence];
+      }
+
+      const response = assignmentData.method === 'manual'
+        ? await AssignService.createAssignment(payload)
+        : await AssignService.autoAssign(payload);
+
+      if (response.data?.success) {
+        const updatedTicket = response.data.data;
+        setTickets((prev) =>
+          prev.map((ticket) =>
+            ticket.idTicket === updatedTicket.idTicket ? updatedTicket : ticket
+          )
+        );
+        showNotification('Ticket asignado exitosamente', 'success');
+        setIsAssignDialogOpen(false);
+      } else {
+        throw new Error('Respuesta inválida del servidor');
+      }
+    } catch (error) {
+      console.error('Error al asignar ticket:', error);
+      showNotification('No se pudo asignar el ticket', 'error');
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  const handleStateUpdate = async ({ stateId, comment }) => {
+    if (!stateDialogTicket || !stateId || !comment.trim()) {
+      return;
+    }
+
+    if (!currentUser?.idUser) {
+      showNotification('No se pudo identificar al usuario actual', 'error');
+      return;
+    }
+
+    setIsUpdatingState(true);
+    try {
+      const payload = {
+        idTicket: stateDialogTicket.idTicket,
+        idState: stateId,
+        StateObservation: comment.trim(),
+        idUser: Number(currentUser.idUser),
+      };
+
+      const response = await TicketService.updateTicket(payload);
+      if (response.data?.success) {
+        const updatedTicket = response.data.data;
+        setTickets((prev) => prev.map((ticket) => (
+          ticket.idTicket === updatedTicket.idTicket ? updatedTicket : ticket
+        )));
+        setStateDialogTicket(updatedTicket);
+        showNotification('Estado actualizado correctamente', 'success');
+        setIsStateDialogOpen(false);
+      } else {
+        throw new Error('Respuesta inválida del servidor');
+      }
+    } catch (updateError) {
+      console.error('Error al actualizar estado:', updateError);
+      showNotification('No se pudo actualizar el estado del ticket', 'error');
+    } finally {
+      setIsUpdatingState(false);
     }
   };
 
@@ -260,13 +524,15 @@ export default function TicketList() {
         
         <div className="flex items-center gap-3">
           {/* Botón Crear Ticket */}
-          <Button
-            onClick={() => navigate('/tickets/create')}
-            className="gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Nuevo Ticket
-          </Button>
+          {canCreateTickets && (
+            <Button
+              onClick={() => navigate('/tickets/create')}
+              className="gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Nuevo Ticket
+            </Button>
+          )}
           {/* Filtros (solo para admin) */}
           {role === 3 && (
             <>
@@ -391,7 +657,9 @@ export default function TicketList() {
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
-                          <span>{new Date(ticket.CreationDate || ticket.DateOfEntry).toLocaleDateString()}</span>
+                          <span>
+                            {formatUtcToLocalDate(ticket.CreationDate || ticket.DateOfEntry, { includeYear: true })}
+                          </span>
                         </div>
                         <div className="flex items-center gap-1">
                           <User className="w-4 h-4" />
@@ -419,6 +687,85 @@ export default function TicketList() {
                 <CardContent className="pt-0 space-y-6">
                   <Separator />
 
+                  {/* Admin: Assign button for pending tickets */}
+                  {isAdmin && Number(ticket.idState) === 1 && !ticket.Assign && (
+                    <div className="flex flex-wrap items-center gap-3 p-4 rounded-lg border border-dashed border-accent/70 bg-accent/10 mb-4">
+                      <Button
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => openAssignDialog(ticket)}
+                      >
+                        <UserCheck className="w-4 h-4" />
+                        Asignar Técnico
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Asigna este ticket a un técnico disponible.
+                      </p>
+                    </div>
+                  )}
+
+                  {(() => {
+                    const currentStateId = Number(ticket.idState);
+                    const isTech = role === 1;
+                    const isClientOrAdmin = role === 2 || role === 3;
+
+                    if (isTech && currentStateId === 2) {
+                      return (
+                        <div className="flex flex-wrap items-center gap-3 p-4 rounded-lg border border-dashed border-border/70 bg-muted/20">
+                          <Button
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => openStateDialog(ticket)}
+                          >
+                            <Edit3 className="w-4 h-4" />
+                            Responder ticket
+                          </Button>
+                          <p className="text-xs text-muted-foreground">
+                            Se cambiará automáticamente a "En Proceso".
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    if (isTech && currentStateId === 3) {
+                      return (
+                        <div className="flex flex-wrap items-center gap-3 p-4 rounded-lg border border-dashed border-border/70 bg-muted/20">
+                          <Button
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => openStateDialog(ticket)}
+                          >
+                            <Edit3 className="w-4 h-4" />
+                            Marcar como resuelto
+                          </Button>
+                          <p className="text-xs text-muted-foreground">
+                            Requiere comentario y admite evidencia opcional.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    if (isClientOrAdmin && currentStateId === 4) {
+                      return (
+                        <div className="flex flex-wrap items-center gap-3 p-4 rounded-lg border border-dashed border-border/70 bg-muted/20">
+                          <Button
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => openStateDialog(ticket)}
+                          >
+                            <Edit3 className="w-4 h-4" />
+                            Cerrar ticket
+                          </Button>
+                          <p className="text-xs text-muted-foreground">
+                            Requiere comentario y admite evidencia opcional.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return null;
+                  })()}
+
                   {/* Description */}
                   <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
                     <h4 className="font-semibold flex items-center gap-2 mb-3">
@@ -442,20 +789,52 @@ export default function TicketList() {
                           </h4>
                         </CardHeader>
                         <CardContent>
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              <AvatarFallback className="bg-accent text-accent-foreground">
-                                {ticket.Assign.Technician.Username.substring(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">{ticket.Assign.Technician.Username}</p>
-                              <p className="text-xs text-muted-foreground truncate">{ticket.Assign.Technician.Email}</p>
+                          <div className="flex items-start gap-3">
+                            {/* Avatar y datos del técnico */}
+                            <div className="flex items-start gap-3 flex-1">
+                              <Avatar className="flex-shrink-0">
+                                <AvatarImage 
+                                  src={`https://api.dicebear.com/7.x/${ticket.Assign.Technician.AvatarStyle || 'avataaars'}/svg?seed=${ticket.Assign.Technician.AvatarSeed || ticket.Assign.Technician.Username}`}
+                                  alt={ticket.Assign.Technician.Username}
+                                />
+                                <AvatarFallback className="bg-accent text-accent-foreground">
+                                  {getTechnicianInitials(ticket.Assign.Technician.Username)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm truncate">{ticket.Assign.Technician.Username}</p>
+                                <p className="text-xs text-muted-foreground truncate">{ticket.Assign.Technician.Email}</p>
+                              </div>
+                            </div>
+                            
+                            {/* Información de asignación */}
+                            <div className="flex-1 space-y-2 border-l pl-3">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">Asignado:</span>
+                                <div className="text-right">
+                                  <p className="font-medium">
+                                    <strong>{ticket.Assign.DateOfAssign 
+                                      ? formatUtcToLocalDate(ticket.Assign.DateOfAssign)
+                                      : 'N/A'}</strong> <span>| </span>
+                                      {ticket.Assign.DateOfAssign 
+                                      ? formatUtcToLocalTime(ticket.Assign.DateOfAssign)
+                                      : ''}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">Método:</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {ticket.Assign.WorkFlowRules === 'Manual' ? 'Manual' : 'Automático'}
+                                </Badge>
+                              </div>
                             </div>
                           </div>
-                          <Badge variant="outline" className="mt-3 w-full justify-center">
-                            {ticket.Assign.Type}
-                          </Badge>
+                          
+                          <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
+                            Responsable del seguimiento del ticket.
+                          </p>
                         </CardContent>
                       </Card>
                     )}
@@ -476,33 +855,19 @@ export default function TicketList() {
                               <div className="text-center p-2 rounded-lg bg-background/50">
                                 <p className="text-xs font-semibold text-primary mb-1">Respuesta</p>
                                 <p className="text-lg font-bold text-primary">
-                                  {new Date(ticket.SLA.ResponseDeadline).toLocaleString('es-ES', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hour12: true
-                                  })}
+                                  {formatSlaTime(ticket.SLA.ResponseDeadline)}
                                 </p>
                                 <p className="text-[10px] text-muted-foreground mt-1">
-                                  {new Date(ticket.SLA.ResponseDeadline).toLocaleDateString('es-ES', {
-                                    day: '2-digit',
-                                    month: '2-digit'
-                                  })}
+                                  {formatSlaDate(ticket.SLA.ResponseDeadline)}
                                 </p>
                               </div>
                               <div className="text-center p-2 rounded-lg bg-background/50">
                                 <p className="text-xs font-semibold text-green-600 mb-1">Resolución</p>
                                 <p className="text-lg font-bold text-green-600">
-                                  {new Date(ticket.SLA.ResolutionDeadline).toLocaleString('es-ES', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hour12: true
-                                  })}
+                                  {formatSlaTime(ticket.SLA.ResolutionDeadline)}
                                 </p>
                                 <p className="text-[10px] text-muted-foreground mt-1">
-                                  {new Date(ticket.SLA.ResolutionDeadline).toLocaleDateString('es-ES', {
-                                    day: '2-digit',
-                                    month: '2-digit'
-                                  })}
+                                  {formatSlaDate(ticket.SLA.ResolutionDeadline)}
                                 </p>
                               </div>
                             </>
@@ -537,7 +902,7 @@ export default function TicketList() {
                                 <div className="flex items-center justify-between">
                                   <span className="font-medium text-sm">{record.State}</span>
                                   <span className="text-xs text-muted-foreground">
-                                    {new Date(record.DateOfChange).toLocaleString()}
+                                    {formatUtcToLocalDateTime(record.DateOfChange, { includeSeconds: true })}
                                   </span>
                                 </div>
                               <p className="text-xs text-muted-foreground">{record.Observation}</p>
@@ -602,7 +967,7 @@ export default function TicketList() {
                             "{ticket.ServiceReview.Comment}"
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(ticket.ServiceReview.DateOfReview).toLocaleString()}
+                            {formatUtcToLocalDateTime(ticket.ServiceReview.DateOfReview)}
                           </p>
                         </div>
                       </CardContent>
@@ -615,6 +980,28 @@ export default function TicketList() {
           );
         })}
       </div>
+
+      {stateDialogTicket && (
+        <StateUpdateDialog
+          open={isStateDialogOpen}
+          onOpenChange={setIsStateDialogOpen}
+          ticket={stateDialogTicket}
+          states={dialogStateOptions}
+          onSubmit={handleStateUpdate}
+          loading={isUpdatingState}
+        />
+      )}
+
+      {assignDialogTicket && (
+        <AssignmentDialog
+          open={isAssignDialogOpen}
+          onOpenChange={setIsAssignDialogOpen}
+          ticket={assignDialogTicket}
+          technicians={technicians}
+          onAssign={handleAssignment}
+          loading={isAssigning}
+        />
+      )}
 
       {/* Modal de Imagen */}
       {imageModal.open && (

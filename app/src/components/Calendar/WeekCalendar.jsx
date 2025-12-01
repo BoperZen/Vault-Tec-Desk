@@ -18,6 +18,7 @@ import {
   Hash,
 } from 'lucide-react';
 import TicketService from '@/services/TicketService';
+import { useUser } from '@/context/UserContext';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -108,7 +109,8 @@ const getSLAProgressColor = (urgency) => {
 
 export default function WeekCalendar() {
   const navigate = useNavigate();
-  const userId = parseInt(import.meta.env.VITE_USER_ID);
+  const { currentUser } = useUser();
+  const userId = currentUser?.idUser;
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [weekDays, setWeekDays] = useState([]);
@@ -137,6 +139,11 @@ export default function WeekCalendar() {
 
   // Cargar tickets
   const loadTickets = useCallback(async () => {
+    if (!userId) {
+      setTickets([]);
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await TicketService.getTickets();
@@ -145,8 +152,9 @@ export default function WeekCalendar() {
         const allTickets = response.data.data;
         
         // Filtrar solo los tickets del usuario (comparación estricta de números)
+        const numericUserId = Number(userId);
         const userTickets = allTickets.filter(
-          ticket => parseInt(ticket.User?.idUser) === parseInt(userId)
+          ticket => Number(ticket.User?.idUser) === numericUserId
         );
         
         setTickets(userTickets);

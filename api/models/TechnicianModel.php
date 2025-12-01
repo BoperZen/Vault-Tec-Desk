@@ -64,6 +64,10 @@ class TechnicianModel
             // Agregar los IDs de especialidades como array
             $vResultado->SpecialtyIds = $this->getSpecialtyIds($idTechnician);
             
+            // Normalizar campos de avatar
+            $vResultado->AvatarStyle = isset($vResultado->AvatarStyle) ? $vResultado->AvatarStyle : 'avataaars';
+            $vResultado->AvatarSeed = isset($vResultado->AvatarSeed) ? $vResultado->AvatarSeed : '';
+            
             return $vResultado;
         }
         
@@ -85,6 +89,32 @@ class TechnicianModel
 
         if (is_array($vResultado) && count($vResultado) > 0) {
             return $vResultado[0];
+        }
+
+        return null;
+    }
+
+    /**
+     * Obtener un técnico a partir del ID de usuario
+     * @param int $idUser - ID del usuario relacionado
+     * @return object|null - Objeto técnico completo o null si no existe
+     */
+    public function getByUserId($idUser)
+    {
+        $idUser = (int) $idUser;
+
+        if ($idUser <= 0) {
+            return null;
+        }
+
+        $vSql = "SELECT idTechnician FROM technician WHERE idUser = $idUser LIMIT 1";
+        $vResultado = $this->enlace->ExecuteSQL($vSql);
+
+        if (!empty($vResultado) && is_array($vResultado)) {
+            $record = $vResultado[0];
+            if (isset($record->idTechnician)) {
+                return $this->get((int) $record->idTechnician);
+            }
         }
 
         return null;

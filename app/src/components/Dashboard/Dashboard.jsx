@@ -9,9 +9,11 @@ import TicketService from '@/services/TicketService';
 import TechnicianService from '@/services/TechnicianService';
 
 export default function Dashboard() {
-  const { currentUser } = useUser();
+  const { currentUser, technicianProfile, isTechnicianLoading } = useUser();
   const { isAdmin, isTechnician } = useRole();
-  const technicianId = import.meta.env.VITE_TECHNICIAN_ID;
+  const technicianId = technicianProfile?.idTechnician;
+  const userId = currentUser?.idUser;
+  const technicianNumericId = Number(technicianId);
   const [stats, setStats] = useState({
     totalTickets: 0,
     myTickets: 0,
@@ -24,6 +26,10 @@ export default function Dashboard() {
   const [recentTickets, setRecentTickets] = useState([]);
 
   const loadStats = useCallback(async () => {
+    if (isTechnician && (isTechnicianLoading || !Number.isFinite(technicianNumericId))) {
+      return;
+    }
+
     try {
       setLoading(true);
       const promises = [TicketService.getTickets()];
@@ -37,18 +43,18 @@ export default function Dashboard() {
       
       if (ticketResponse.data.success) {
         const allTickets = ticketResponse.data.data;
-        const userId = parseInt(import.meta.env.VITE_USER_ID);
+        const currentUserId = Number(userId);
         
         let myTickets = allTickets;
         if (isTechnician) {
           // Filtrar solo los tickets asignados al técnico
           myTickets = allTickets.filter(
-            ticket => ticket.Assign?.Technician?.idTechnician === parseInt(technicianId)
+            ticket => Number(ticket.Assign?.Technician?.idTechnician) === technicianNumericId
           );
         } else if (!isAdmin) {
           // Cliente: solo sus tickets creados
           myTickets = allTickets.filter(
-            ticket => parseInt(ticket.User?.idUser) === parseInt(userId)
+            ticket => Number(ticket.User?.idUser) === currentUserId
           );
         }
         
@@ -74,7 +80,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, isTechnician, technicianId]);
+  }, [isAdmin, isTechnician, technicianNumericId, userId, isTechnicianLoading]);
 
   useEffect(() => {
     loadStats();

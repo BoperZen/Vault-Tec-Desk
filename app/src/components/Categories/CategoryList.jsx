@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/collapsible';
 
 export default function CategoryList() {
-  const { isAdmin } = useRole();
+  const { isAdmin, isLoadingRole } = useRole();
   const location = useLocation();
   const navigate = useNavigate();
   const { showNotification } = useNotification();
@@ -49,13 +49,14 @@ export default function CategoryList() {
   }, []);
 
   useEffect(() => {
+    if (isLoadingRole) return;
     // Solo admins pueden ver categorías
     if (!isAdmin) {
       navigate('/');
       return;
     }
     loadCategories();
-  }, [isAdmin, navigate]);
+  }, [isAdmin, isLoadingRole, navigate]);
 
   const loadCategories = async () => {
     try {

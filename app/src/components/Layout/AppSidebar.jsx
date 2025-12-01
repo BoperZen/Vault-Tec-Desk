@@ -113,7 +113,7 @@ const settingsItem = {
 export function AppSidebar() {
   const location = useLocation();
   const { open, toggleSidebar } = useSidebar();
-  const { role } = useRole();
+  const { role, isLoadingRole } = useRole();
 
   const menuItems = getMenuItems(role);
 
@@ -170,29 +170,33 @@ export function AppSidebar() {
             Navegación
           </SidebarGroupLabel>
           <SidebarGroupContent className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
-            <SidebarMenu className="space-y-2 group-data-[collapsible=icon]:space-y-3">
-              {menuItems.map((item) => {
-                const isActive = location.pathname === item.url;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.title}
-                      className={`h-10 px-3 rounded-lg transition-all duration-200 ${
-                        isActive 
-                          ? 'bg-primary/10 text-primary hover:bg-primary/15 shadow-sm' 
-                          : 'hover:bg-muted/80'
-                      }`}
-                    >
-                      <Link to={item.url} className="flex items-center">
-                        <item.icon className="w-4 h-4 shrink-0 mr-3" />
-                        <span className="font-medium text-sm flex-1">{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+            {isLoadingRole ? (
+              <div className="text-xs text-muted-foreground px-3 py-2">Cargando navegación...</div>
+            ) : (
+              <SidebarMenu className="space-y-2 group-data-[collapsible=icon]:space-y-3">
+                {menuItems.map((item) => {
+                  const isActive = location.pathname === item.url;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip={item.title}
+                        className={`h-10 px-3 rounded-lg transition-all duration-200 ${
+                          isActive 
+                            ? 'bg-primary/10 text-primary hover:bg-primary/15 shadow-sm' 
+                            : 'hover:bg-muted/80'
+                        }`}
+                      >
+                        <Link to={item.url} className="flex items-center">
+                          <item.icon className="w-4 h-4 shrink-0 mr-3" />
+                          <span className="font-medium text-sm flex-1">{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
 

@@ -44,6 +44,19 @@ class technician
         }
     }
 
+    public function byuser($idUser)
+    {
+        try {
+            $response = new Response();
+            $technician = new TechnicianModel();
+            $result = $technician->getByUserId($idUser);
+            $response->toJSON($result);
+        } catch (Exception $e) {
+            $response->toJSON(null);
+            handleException($e);
+        }
+    }
+
     public function create()
     {
         try {

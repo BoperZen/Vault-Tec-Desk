@@ -1,23 +1,30 @@
+import { useUser } from '@/context/UserContext';
+
 /**
  * Hook para obtener información del rol del usuario actual
- * 
+ *
  * Roles disponibles:
  * 1 - Técnico
  * 2 - Cliente
  * 3 - Admin
  */
 export function useRole() {
-  const userRole = parseInt(import.meta.env.VITE_USER_ROLE) || 2; // Default: Cliente
+  const { currentUser, isUserLoading } = useUser();
+  const parsedRole = Number(currentUser?.idRol);
+  const resolvedRole = Number.isFinite(parsedRole) && parsedRole > 0
+    ? parsedRole
+    : 2; // Cliente por defecto mientras se carga
 
   return {
-    role: userRole,
-    isTechnician: userRole === 1,
-    isClient: userRole === 2,
-    isAdmin: userRole === 3,
-    canViewAllTickets: userRole === 1 || userRole === 3, // Técnicos y Admins
-    canManageTechnicians: userRole === 3, // Solo Admins
-    canManageCategories: userRole === 3, // Solo Admins
-    canAssignTickets: userRole === 1 || userRole === 3, // Técnicos y Admins
-    canCloseTickets: userRole === 1 || userRole === 3, // Técnicos y Admins
+    role: resolvedRole,
+    isTechnician: resolvedRole === 1,
+    isClient: resolvedRole === 2,
+    isAdmin: resolvedRole === 3,
+    canViewAllTickets: resolvedRole === 3,
+    canManageTechnicians: resolvedRole === 3,
+    canManageCategories: resolvedRole === 3,
+    canAssignTickets: resolvedRole === 3,
+    canCloseTickets: resolvedRole === 2 || resolvedRole === 3,
+    isLoadingRole: isUserLoading,
   };
 }

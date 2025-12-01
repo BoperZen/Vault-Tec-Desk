@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Calendar as CalendarIcon, 
@@ -9,17 +9,30 @@ import {
   Ticket,
   AlertCircle,
   CheckCircle2,
-  Loader2,
   Filter,
   Eye,
+  Hash,
+  Edit3,
+  Loader2,
+  ChevronDown,
+  Search,
+  Upload,
+  Trash2,
 } from 'lucide-react';
 import { useRole } from '@/hooks/use-role';
+import { useUser } from '@/context/UserContext';
+import { useNotification } from '@/context/NotificationContext';
 import TicketService from '@/services/TicketService';
 import TechnicianService from '@/services/TechnicianService';
+import StateService from '@/services/StateService';
+import AssignService from '@/services/AssignService';
+import CategoryService from '@/services/CategoryService';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -27,6 +40,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import StateUpdateDialog from '@/components/Tickets/StateUpdateDialog';
+import { formatUtcToLocalDate, formatUtcToLocalTime } from '@/lib/utils';
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS = [
@@ -45,24 +60,177 @@ const getStateColor = (state) => {
   return colors[state] || 'bg-muted';
 };
 
+const SLA_URGENCY_STYLES = {
+  healthy: {
+    text: 'text-green-500',
+    bar: '[&>div]:bg-green-500',
+  },
+  warning: {
+    text: 'text-yellow-500',
+    bar: '[&>div]:bg-yellow-500',
+  },
+  critical: {
+    text: 'text-red-500',
+    bar: '[&>div]:bg-red-500',
+  },
+  expired: {
+    text: 'text-red-600',
+    bar: '[&>div]:bg-red-600',
+  },
+  neutral: {
+    text: 'text-muted-foreground',
+    bar: '[&>div]:bg-muted-foreground',
+  },
+};
+
+const getTechnicianInitials = (name = '') => {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('') || '—';
+};
+
+const getSlaSummary = (ticket) => {
+  if (!ticket?.SLA) {
+    return {
+      label: 'Sin SLA configurado',
+      remaining: '—',
+      percentage: 0,
+      urgency: 'neutral',
+    };
+  }
+
+  const total = ticket.SLA.ResponseTime ?? ticket.SLA.ResolutionTime ?? 1;
+  const remainingRaw = ticket.SLA.ResponseHoursRemaining ?? ticket.SLA.ResolutionHoursRemaining ?? 0;
+  const remaining = Math.max(-total, Number(remainingRaw));
+  const used = total - Math.max(0, remaining);
+  const percentage = Math.min(100, Math.max(0, (used / total) * 100));
+
+  let urgency = 'healthy';
+  if (remaining <= 0) {
+    urgency = 'expired';
+  } else if (percentage >= 80) {
+    urgency = 'critical';
+  } else if (percentage >= 60) {
+    urgency = 'warning';
+  }
+
+  return {
+    label: remaining <= 0 ? 'SLA vencido' : 'Tiempo SLA restante',
+    remaining: `${Math.max(0, remaining).toFixed(1)} h`,
+    percentage,
+    urgency,
+  };
+};
+
+const TECHNICIAN_TRANSITIONS = {
+  2: 3,
+  3: 4,
+};
+
+const CLIENT_TRANSITIONS = {
+  4: 5,
+};
+
+const ADMIN_TRANSITIONS = {
+  4: 5,
+};
+
 export default function WorkCalendar() {
   const navigate = useNavigate();
-  const { isAdmin } = useRole();
-  const technicianId = import.meta.env.VITE_TECHNICIAN_ID;
-  
+  const { isAdmin, isTechnician, isClient, isLoadingRole } = useRole();
+  const { technicianProfile, isTechnicianLoading, currentUser } = useUser();
+  const { showNotification } = useNotification();
+  const technicianIdValue = technicianProfile?.idTechnician ? Number(technicianProfile.idTechnician) : null;
+
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedTicket, setSelectedTicket] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [technicians, setTechnicians] = useState([]);
-  const [selectedTechnician, setSelectedTechnician] = useState(isAdmin ? 'all' : technicianId);
+  const [selectedTechnician, setSelectedTechnician] = useState(
+    isAdmin ? 'all' : (technicianIdValue ? technicianIdValue.toString() : null)
+  );
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filterType, setFilterType] = useState('all'); // 'all' o 'assigned'
+  const [states, setStates] = useState([]);
+  const [isStateDialogOpen, setIsStateDialogOpen] = useState(false);
+  const [targetTicket, setTargetTicket] = useState(null);
+  const [isUpdatingState, setIsUpdatingState] = useState(false);
+  const [assigningTechnicianId, setAssigningTechnicianId] = useState(null);
+  const [techSearch, setTechSearch] = useState('');
+  const [onlyMatchingSpecialties, setOnlyMatchingSpecialties] = useState(true);
+  const [capacityFilter, setCapacityFilter] = useState('all');
+  const [isAssignPanelOpen, setIsAssignPanelOpen] = useState(false);
+  const [assignObservation, setAssignObservation] = useState('');
+  const [assignEvidence, setAssignEvidence] = useState(null);
+  const [assignEvidencePreview, setAssignEvidencePreview] = useState(null);
+  const [assignEvidenceError, setAssignEvidenceError] = useState('');
+  const [stateDialogNextState, setStateDialogNextState] = useState(null);
 
   useEffect(() => {
+    if (isLoadingRole) return;
+    if (!isAdmin && (isTechnicianLoading || !technicianIdValue)) return;
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTechnician, filterType]);
+  }, [selectedTechnician, filterType, isAdmin, isLoadingRole, technicianIdValue, isTechnicianLoading]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      setSelectedTechnician('all');
+      return;
+    }
+
+    if (technicianIdValue) {
+      setSelectedTechnician(technicianIdValue.toString());
+    }
+  }, [isAdmin, technicianIdValue]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStates = async () => {
+      try {
+        const response = await StateService.getStates();
+        if (response.data?.success && isMounted) {
+          setStates(response.data.data || []);
+        }
+      } catch (stateError) {
+        console.error('Error al cargar estados:', stateError);
+      }
+    };
+
+    fetchStates();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let isMounted = true;
+
+    const fetchCategories = async () => {
+      try {
+        const response = await CategoryService.getCategories();
+        if (response.data?.success && isMounted) {
+          setCategories(response.data.data || []);
+        }
+      } catch (catError) {
+        console.error('Error al cargar categorías:', catError);
+      }
+    };
+
+    fetchCategories();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAdmin]);
 
   const loadData = async () => {
     try {
@@ -109,6 +277,62 @@ export default function WorkCalendar() {
     }
   };
 
+  const openStateDialog = (ticket) => {
+    const nextState = getNextStateForTicket(ticket);
+    if (!nextState) {
+      showNotification('No hay cambios de estado disponibles para este ticket', 'warning');
+      return;
+    }
+
+    setTargetTicket(ticket);
+    setStateDialogNextState(nextState);
+    setIsStateDialogOpen(true);
+  };
+
+  const handleStateChange = async ({ stateId, comment, image }) => {
+    if (!targetTicket || !stateId || !comment.trim()) return;
+    if (!currentUser?.idUser) {
+      showNotification('No se pudo identificar al usuario actual', 'error');
+      return;
+    }
+
+    setIsUpdatingState(true);
+    try {
+      const payload = {
+        idTicket: targetTicket.idTicket,
+        idState: stateId,
+        StateObservation: comment.trim(),
+        idUser: Number(currentUser.idUser),
+      };
+
+      if (image) {
+        payload.StateImages = [image];
+      }
+
+      const response = await TicketService.updateTicket(payload);
+      if (response.data?.success) {
+        const updatedTicket = response.data.data;
+        setTickets((prev) => prev.map((ticket) => (
+          ticket.idTicket === updatedTicket.idTicket ? updatedTicket : ticket
+        )));
+        setSelectedTicket((prev) => (
+          prev && prev.idTicket === updatedTicket.idTicket ? updatedTicket : prev
+        ));
+        setTargetTicket(updatedTicket);
+        showNotification('Estado actualizado correctamente', 'success');
+        setIsStateDialogOpen(false);
+        setStateDialogNextState(null);
+      } else {
+        throw new Error('Respuesta inválida del servidor');
+      }
+    } catch (updateError) {
+      console.error('Error al actualizar estado:', updateError);
+      showNotification('No se pudo actualizar el estado del ticket', 'error');
+    } finally {
+      setIsUpdatingState(false);
+    }
+  };
+
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -122,7 +346,9 @@ export default function WorkCalendar() {
 
   const getTicketsForDate = (date) => {
     return tickets.filter(ticket => {
-      const ticketDate = new Date(ticket.CreationDate);
+      const sourceDate = ticket.CreationDate || ticket.DateOfEntry;
+      if (!sourceDate) return false;
+      const ticketDate = new Date(sourceDate);
       return ticketDate.getDate() === date.getDate() &&
              ticketDate.getMonth() === date.getMonth() &&
              ticketDate.getFullYear() === date.getFullYear();
@@ -135,7 +361,253 @@ export default function WorkCalendar() {
 
   const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentDate);
   const today = new Date();
-  const selectedDateTickets = selectedDate ? getTicketsForDate(selectedDate) : [];
+  const selectedDateTickets = useMemo(() => {
+    if (!selectedDate) return [];
+    return getTicketsForDate(selectedDate);
+  }, [selectedDate, tickets]);
+
+  const categoriesById = useMemo(() => {
+    if (!Array.isArray(categories) || categories.length === 0) {
+      return new Map();
+    }
+
+    return categories.reduce((map, category) => {
+      if (category?.idCategory) {
+        map.set(Number(category.idCategory), category);
+      }
+      return map;
+    }, new Map());
+  }, [categories]);
+
+  const selectedTicketCategory = useMemo(() => {
+    if (!selectedTicket?.idCategory) return null;
+    return categoriesById.get(Number(selectedTicket.idCategory)) || null;
+  }, [categoriesById, selectedTicket?.idCategory]);
+
+  const requiredSpecialtyIds = selectedTicketCategory?.SpecialtyIds || [];
+  const statesById = useMemo(() => {
+    if (!Array.isArray(states)) {
+      return new Map();
+    }
+
+    return states.reduce((map, state) => {
+      if (state?.idState) {
+        map.set(Number(state.idState), state);
+      }
+      return map;
+    }, new Map());
+  }, [states]);
+
+  const getNextStateForTicket = useCallback((ticket) => {
+    if (!ticket) return null;
+    const currentStateId = Number(ticket.idState);
+    if (!Number.isFinite(currentStateId)) return null;
+
+    let nextStateId = null;
+    if (isTechnician) {
+      nextStateId = TECHNICIAN_TRANSITIONS[currentStateId] ?? null;
+    } else if (isClient) {
+      nextStateId = CLIENT_TRANSITIONS[currentStateId] ?? null;
+    } else if (isAdmin) {
+      nextStateId = ADMIN_TRANSITIONS[currentStateId] ?? null;
+    }
+
+    if (!nextStateId) {
+      return null;
+    }
+
+    return statesById.get(nextStateId) || null;
+  }, [isTechnician, isClient, isAdmin, statesById]);
+
+  const selectedTicketNextState = useMemo(
+    () => getNextStateForTicket(selectedTicket),
+    [selectedTicket, getNextStateForTicket]
+  );
+
+  const changeStateLabel = useMemo(() => {
+    if (!selectedTicketNextState || !selectedTicket) {
+      return 'Cambiar estado';
+    }
+
+    const stateId = Number(selectedTicket.idState);
+    if (stateId === 2) return 'Responder ticket';
+    if (stateId === 3) return 'Marcar como resuelto';
+    if (stateId === 4) return 'Cerrar ticket';
+    return 'Cambiar estado';
+  }, [selectedTicket, selectedTicketNextState]);
+
+  const canShowStateAction = Boolean(selectedTicketNextState);
+
+  const rankedTechnicians = useMemo(() => {
+    if (!isAdmin || technicians.length === 0 || !selectedTicket) {
+      return [];
+    }
+
+    const requirements = Array.isArray(requiredSpecialtyIds)
+      ? requiredSpecialtyIds.map((id) => Number(id))
+      : [];
+
+    return technicians
+      .map((tech) => {
+        const specialtyIds = Array.isArray(tech.SpecialtyIds)
+          ? tech.SpecialtyIds.map((id) => Number(id))
+          : [];
+        const matches = requirements.filter((id) => specialtyIds.includes(id));
+        const coversAll = requirements.length === 0 ? true : matches.length === requirements.length;
+        const matchRatio = requirements.length === 0 ? 0 : matches.length / requirements.length;
+
+        const availability = typeof tech.Availability === 'number' ? tech.Availability : 0;
+        const workload = typeof tech.WorkLoad === 'number' ? tech.WorkLoad : 0;
+        const capacity = availability > 0 ? Math.max(0, availability - workload) : 0;
+        const capacityScore = availability > 0 ? capacity / availability : 0;
+
+        const score = matchRatio * 0.7 + capacityScore * 0.3;
+
+        return {
+          ...tech,
+          matchCount: matches.length,
+          coversAll,
+          capacity,
+          availability,
+          workload,
+          score,
+        };
+      })
+      .sort((a, b) => b.score - a.score);
+  }, [isAdmin, technicians, requiredSpecialtyIds, selectedTicket]);
+
+  const visibleTechnicians = useMemo(() => {
+    if (!isAdmin) return [];
+
+    const lookup = techSearch.trim().toLowerCase();
+
+    return rankedTechnicians.filter((tech) => {
+      const matchesSearch = lookup.length === 0
+        ? true
+        : tech.Username?.toLowerCase().includes(lookup) || tech.Email?.toLowerCase().includes(lookup);
+
+      const matchesSpecialty = !onlyMatchingSpecialties || requiredSpecialtyIds.length === 0
+        ? true
+        : tech.matchCount > 0;
+
+      let matchesCapacity = true;
+      if (capacityFilter === 'available') {
+        matchesCapacity = (tech.capacity ?? 0) > 0;
+      } else if (capacityFilter === 'full') {
+        matchesCapacity = (tech.capacity ?? 0) <= 0;
+      }
+
+      return matchesSearch && matchesSpecialty && matchesCapacity;
+    });
+  }, [isAdmin, rankedTechnicians, techSearch, onlyMatchingSpecialties, capacityFilter, requiredSpecialtyIds.length]);
+
+  const handleManualAssign = async (technicianId) => {
+    if (!selectedTicket) {
+      showNotification('Selecciona un ticket para asignar', 'warning');
+      return;
+    }
+
+    if (!assignObservation.trim()) {
+      showNotification('Ingresa una observación para la asignación manual', 'warning');
+      return;
+    }
+
+    if (!currentUser?.idUser) {
+      showNotification('No se pudo identificar al usuario actual', 'error');
+      return;
+    }
+
+    setAssigningTechnicianId(technicianId);
+    try {
+      const payload = {
+        idTicket: selectedTicket.idTicket,
+        idTechnician: technicianId,
+        PriorityScore: selectedTicket.Priority || null,
+        StateObservation: assignObservation.trim(),
+        idUser: Number(currentUser.idUser),
+      };
+
+      if (assignEvidence) {
+        payload.StateImages = [assignEvidence];
+      }
+
+      const response = await AssignService.createAssignment(payload);
+      if (response.data?.success) {
+        const updatedTicket = response.data.data;
+        setTickets((prev) => prev.map((ticket) => (
+          ticket.idTicket === updatedTicket.idTicket ? updatedTicket : ticket
+        )));
+        setSelectedTicket(updatedTicket);
+        showNotification('Ticket asignado exitosamente', 'success');
+        setAssignObservation('');
+        setAssignEvidence(null);
+        setAssignEvidencePreview(null);
+        setAssignEvidenceError('');
+      } else {
+        throw new Error('Respuesta inválida del servidor');
+      }
+    } catch (assignError) {
+      console.error('Error al asignar ticket:', assignError);
+      showNotification('No se pudo asignar el ticket', 'error');
+    } finally {
+      setAssigningTechnicianId(null);
+    }
+  };
+
+  const handleAssignEvidenceChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setAssignEvidenceError('Solo se permiten archivos de imagen.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAssignEvidenceError('La imagen no debe superar los 5MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAssignEvidence(reader.result);
+      setAssignEvidencePreview(reader.result);
+      setAssignEvidenceError('');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearAssignEvidence = () => {
+    setAssignEvidence(null);
+    setAssignEvidencePreview(null);
+    setAssignEvidenceError('');
+  };
+
+  const handleNavigateToTicket = () => {
+    if (!selectedTicket) return;
+    navigate(`/tickets?ticketId=${selectedTicket.idTicket}`);
+  };
+
+  useEffect(() => {
+    if (selectedDateTickets.length === 0) {
+      setSelectedTicket(null);
+      return;
+    }
+
+    setSelectedTicket((prev) => {
+      if (!prev) return selectedDateTickets[0];
+      const stillExists = selectedDateTickets.find((ticket) => ticket.idTicket === prev.idTicket);
+      return stillExists || selectedDateTickets[0];
+    });
+  }, [selectedDateTickets]);
+
+  useEffect(() => {
+    setIsAssignPanelOpen(false);
+    setAssignObservation('');
+    setAssignEvidence(null);
+    setAssignEvidencePreview(null);
+    setAssignEvidenceError('');
+  }, [selectedTicket?.idTicket]);
 
   if (loading) {
     return (
@@ -352,204 +824,465 @@ export default function WorkCalendar() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <CalendarIcon className="w-5 h-5 text-accent" />
-                <CardTitle className="text-xl">
-                  {MONTHS[month]} {year}
-                </CardTitle>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => navigateMonth(-1)}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentDate(new Date())}
-                >
-                  Hoy
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => navigateMonth(1)}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <CalendarIcon className="w-5 h-5 text-accent" />
+              <CardTitle className="text-xl">
+                {MONTHS[month]} {year}
+              </CardTitle>
             </div>
-          </CardHeader>
-          <CardContent>
-            {/* Day headers */}
-            <div className="grid grid-cols-7 gap-2 mb-2">
-              {DAYS.map((day) => (
-                <div
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={() => navigateMonth(-1)}>
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
+                Hoy
+              </Button>
+              <Button variant="outline" size="icon" onClick={() => navigateMonth(1)}>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-7 gap-3 mb-3">
+            {DAYS.map((day) => (
+              <div
+                key={day}
+                className="text-center text-xs font-semibold text-muted-foreground tracking-wide"
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-3">
+            {Array.from({ length: startingDayOfWeek }).map((_, index) => (
+              <div key={`empty-${index}`} className="h-[120px]" />
+            ))}
+
+            {Array.from({ length: daysInMonth }).map((_, index) => {
+              const day = index + 1;
+              const date = new Date(year, month, day);
+              const dayTickets = getTicketsForDate(date);
+              const isToday =
+                date.getDate() === today.getDate() &&
+                date.getMonth() === today.getMonth() &&
+                date.getFullYear() === today.getFullYear();
+              const isSelected = selectedDate &&
+                selectedDate.getDate() === day &&
+                selectedDate.getMonth() === month &&
+                selectedDate.getFullYear() === year;
+
+              return (
+                <button
+                  type="button"
                   key={day}
-                  className="text-center text-xs font-semibold text-muted-foreground py-2"
+                  onClick={() => setSelectedDate(date)}
+                  className={`flex flex-col justify-between rounded-2xl border px-3 py-2 text-left h-[120px] transition-all relative overflow-hidden ${
+                    isSelected
+                      ? 'border-primary bg-primary/10 shadow-md'
+                      : isToday
+                      ? 'border-accent bg-accent/10'
+                      : 'border-border bg-muted/10'
+                  }`}
                 >
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            {/* Calendar grid */}
-            <div className="grid grid-cols-7 gap-2">
-              {/* Empty cells for days before month starts */}
-              {Array.from({ length: startingDayOfWeek }).map((_, index) => (
-                <div key={`empty-${index}`} className="aspect-square" />
-              ))}
-
-              {/* Days of the month */}
-              {Array.from({ length: daysInMonth }).map((_, index) => {
-                const day = index + 1;
-                const date = new Date(year, month, day);
-                const dayTickets = getTicketsForDate(date);
-                const isToday =
-                  date.getDate() === today.getDate() &&
-                  date.getMonth() === today.getMonth() &&
-                  date.getFullYear() === today.getFullYear();
-                const isSelected = selectedDate?.getDate() === day &&
-                                 selectedDate?.getMonth() === month &&
-                                 selectedDate?.getFullYear() === year;
-
-                return (
-                  <button
-                    key={day}
-                    onClick={() => setSelectedDate(date)}
-                    className={`aspect-square p-2 rounded-lg border-2 transition-all hover:border-accent hover:shadow-md relative ${
-                      isToday
-                        ? 'border-accent bg-accent/10'
-                        : isSelected
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border bg-muted/20'
-                    }`}
-                  >
-                    <span className={`text-sm font-medium ${isToday ? 'text-accent' : ''}`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xl font-semibold ${isToday ? 'text-accent' : 'text-foreground'}`}>
                       {day}
                     </span>
-                    
-                    {/* Ticket indicators */}
                     {dayTickets.length > 0 && (
-                      <div className="absolute bottom-1 left-1 right-1 flex gap-0.5 flex-wrap justify-center">
-                        {dayTickets.slice(0, 3).map((ticket, idx) => (
-                          <div
-                            key={idx}
-                            className={`w-1.5 h-1.5 rounded-full ${getStateColor(ticket.State)}`}
+                      <Badge variant="secondary" className="text-[10px] px-2 py-0">
+                        {dayTickets.length}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    {dayTickets.slice(0, 2).map((ticket) => (
+                      <div key={ticket.idTicket} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <span className={`w-2 h-2 rounded-full ${getStateColor(ticket.State)}`}></span>
+                        <p className="truncate">{ticket.Title}</p>
+                      </div>
+                    ))}
+                    {dayTickets.length === 0 && (
+                      <p className="text-[11px] text-muted-foreground">Sin tickets</p>
+                    )}
+                    {dayTickets.length > 2 && (
+                      <p className="text-[10px] text-muted-foreground">+{dayTickets.length - 2} más</p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Ticket className="w-5 h-5 text-primary" />
+            {selectedDate
+              ? `${selectedDate.getDate()} de ${MONTHS[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`
+              : 'Selecciona un día'}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {selectedDateTickets.length} ticket{selectedDateTickets.length !== 1 ? 's' : ''} en esta fecha
+          </p>
+        </CardHeader>
+        <CardContent>
+          {selectedDateTickets.length > 0 ? (
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 
+                [&::-webkit-scrollbar]:w-1.5
+                [&::-webkit-scrollbar-track]:bg-transparent
+                [&::-webkit-scrollbar-thumb]:bg-border/60
+                hover:[&::-webkit-scrollbar-thumb]:bg-border">
+                {selectedDateTickets.map((ticket) => {
+                  const creationSource = ticket.CreationDate || ticket.DateOfEntry;
+                  const isActive = selectedTicket?.idTicket === ticket.idTicket;
+                  return (
+                    <button
+                      key={ticket.idTicket}
+                      type="button"
+                      onClick={() => setSelectedTicket(ticket)}
+                      className={`w-full text-left p-3 rounded-xl border transition-all ${
+                        isActive ? 'border-primary bg-primary/10 shadow-md' : 'border-border bg-muted/20'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold truncate">{ticket.Title}</span>
+                        <Badge variant="outline" className="text-[10px] py-0 px-1.5">
+                          #{ticket.idTicket}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <span className={`px-2 py-0.5 rounded-full border text-[10px] ${getStateColor(ticket.State).replace('bg-', 'border-')} ${getStateColor(ticket.State).replace('bg-', 'text-')}`}>
+                          {ticket.State}
+                        </span>
+                        <span>{formatUtcToLocalTime(creationSource)}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="lg:col-span-2">
+                {selectedTicket ? (
+                  <div className="p-4 rounded-2xl border bg-muted/10 space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">#{selectedTicket.idTicket}</Badge>
+                      <h3 className="text-xl font-semibold flex-1 min-w-0 truncate">
+                        {selectedTicket.Title}
+                      </h3>
+                      <Badge className="bg-muted text-foreground border-border">
+                        {selectedTicket.State}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedTicket.Description || 'Sin descripción'}
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
+                      <div className="space-y-1">
+                        <p className="flex items-center gap-1">
+                          <Hash className="w-4 h-4" />
+                          Categoría: {selectedTicket.Category || 'N/A'}
+                        </p>
+                        <p className="flex items-center gap-1">
+                          <User className="w-4 h-4" />
+                          Cliente: {selectedTicket.User?.Username || 'N/A'}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {formatUtcToLocalDate(selectedTicket.CreationDate || selectedTicket.DateOfEntry, { includeYear: true })}
+                        </p>
+                        {selectedTicket.Assign?.Technician && (
+                          <p className="flex items-center gap-2">
+                            Técnico:
+                            <span className="font-medium">{selectedTicket.Assign.Technician.Username}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-background/80 rounded-xl p-3 border">
+                      {(() => {
+                        const sla = getSlaSummary(selectedTicket);
+                        const styles = SLA_URGENCY_STYLES[sla.urgency] || SLA_URGENCY_STYLES.neutral;
+                        return (
+                          <>
+                            <div className="flex items-center justify-between text-sm mb-2">
+                              <p className="font-medium">{sla.label}</p>
+                              <p className={`font-semibold ${styles.text}`}>{sla.remaining}</p>
+                            </div>
+                            <Progress value={sla.percentage} className={`h-2 ${styles.bar}`} />
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    <div className="rounded-xl border bg-background/80 p-4 space-y-3">
+                      <p className="text-sm font-semibold flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        Técnico asignado
+                      </p>
+
+                      {selectedTicket.Assign?.Technician ? (
+                        <>
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 text-primary font-semibold flex items-center justify-center">
+                              {getTechnicianInitials(selectedTicket.Assign.Technician.Username || '')}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{selectedTicket.Assign.Technician.Username}</p>
+                              {selectedTicket.Assign.Technician.Email && (
+                                <p className="text-xs text-muted-foreground">{selectedTicket.Assign.Technician.Email}</p>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Este técnico es el responsable actual del seguimiento del ticket y deberá documentar cada cambio de estado.
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Aún no hay un técnico asignado. Usa el panel de asignación manual para seleccionar uno compatible.
+                        </p>
+                      )}
+                    </div>
+
+                    {canShowStateAction && (
+                      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-border/70 bg-muted/20 p-3">
+                        <Button
+                          size="sm"
+                          className="gap-2"
+                          onClick={() => openStateDialog(selectedTicket)}
+                        >
+                          <Edit3 className="w-4 h-4" />
+                          {changeStateLabel}
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Se registrará un comentario con este cambio.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-dashed">
+                      <Button size="sm" variant="outline" className="gap-2" onClick={handleNavigateToTicket}>
+                        <Eye className="w-4 h-4" />
+                        Ver ticket
+                      </Button>
+                    </div>
+
+                    {isAdmin && (
+                      <div className="space-y-3 pt-4 border-t border-dashed">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="gap-2"
+                          onClick={() => setIsAssignPanelOpen((prev) => !prev)}
+                        >
+                          {isAssignPanelOpen ? 'Ocultar opciones de asignación' : 'Asignar manualmente'}
+                          <ChevronDown
+                            className={`w-4 h-4 transition-transform ${
+                              isAssignPanelOpen ? 'rotate-180' : 'rotate-0'
+                            }`}
                           />
-                        ))}
-                        {dayTickets.length > 3 && (
-                          <span className="text-[8px] text-muted-foreground ml-0.5">
-                            +{dayTickets.length - 3}
-                          </span>
+                        </Button>
+
+                        {isAssignPanelOpen && (
+                          <div className="space-y-4 rounded-2xl border bg-background/80 p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-semibold">Asignación manual</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Selecciona un técnico compatible según especialidad y capacidad disponible.
+                                </p>
+                              </div>
+                              {selectedTicket?.Assign?.Technician && (
+                                <Badge variant="outline" className="text-[10px]">
+                                  Actual: {selectedTicket.Assign.Technician.Username}
+                                </Badge>
+                              )}
+                            </div>
+
+                            <div>
+                              <p className="text-sm font-medium mb-2">Requisitos del ticket</p>
+                              <div className="flex flex-wrap gap-1">
+                                {requiredSpecialtyIds.length > 0 && selectedTicketCategory?.Specialties ? (
+                                  selectedTicketCategory.Specialties.split(',').map((name) => (
+                                    <Badge key={name.trim()} variant="secondary" className="text-[10px]">
+                                      {name.trim()}
+                                    </Badge>
+                                  ))
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">
+                                    Sin especialidades asociadas
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div className="relative">
+                                <Input
+                                  value={techSearch}
+                                  onChange={(event) => setTechSearch(event.target.value)}
+                                  placeholder="Buscar técnico por nombre o correo"
+                                  className="pl-8 text-sm"
+                                />
+                                <Search className="w-4 h-4 text-muted-foreground absolute left-2 top-1/2 -translate-y-1/2" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={onlyMatchingSpecialties ? 'default' : 'outline'}
+                                  onClick={() => setOnlyMatchingSpecialties((prev) => !prev)}
+                                  className="flex-1"
+                                >
+                                  {onlyMatchingSpecialties ? 'Solo especialidad' : 'Ver todos'}
+                                </Button>
+                                <Select value={capacityFilter} onValueChange={setCapacityFilter}>
+                                  <SelectTrigger className="w-[140px]">
+                                    <SelectValue placeholder="Capacidad" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">Toda capacidad</SelectItem>
+                                    <SelectItem value="available">Con espacio</SelectItem>
+                                    <SelectItem value="full">Sin espacio</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="assign-observation" className="text-xs font-medium">
+                                Observación de asignación
+                              </Label>
+                              <textarea
+                                id="assign-observation"
+                                rows={3}
+                                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Explica por qué asignas este ticket a este técnico"
+                                value={assignObservation}
+                                onChange={(event) => setAssignObservation(event.target.value)}
+                              />
+                              <p className="text-[11px] text-muted-foreground">
+                                Este campo es obligatorio y quedará registrado en el historial del ticket.
+                              </p>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="assign-evidence" className="text-xs font-medium">
+                                Evidencia opcional
+                              </Label>
+                              <input
+                                id="assign-evidence"
+                                type="file"
+                                accept="image/*"
+                                onChange={handleAssignEvidenceChange}
+                                className="text-xs"
+                              />
+                              {assignEvidencePreview && (
+                                <div className="flex items-center gap-3">
+                                  <img
+                                    src={assignEvidencePreview}
+                                    alt="Vista previa evidencia"
+                                    className="h-16 w-16 rounded-md object-cover border"
+                                  />
+                                  <Button type="button" variant="ghost" size="sm" onClick={clearAssignEvidence}>
+                                    <Trash2 className="w-4 h-4 mr-1" />
+                                    Quitar
+                                  </Button>
+                                </div>
+                              )}
+                              {assignEvidenceError && (
+                                <p className="text-xs text-destructive">{assignEvidenceError}</p>
+                              )}
+                            </div>
+
+                            <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border/60 hover:[&::-webkit-scrollbar-thumb]:bg-border">
+                              {visibleTechnicians.length > 0 ? (
+                                visibleTechnicians.map((tech) => {
+                                  const capacity = tech.capacity ?? 0;
+                                  const availability = tech.availability ?? 0;
+                                  const completion = availability > 0 ? ((availability - capacity) / availability) * 100 : 0;
+                                  return (
+                                    <div key={tech.idTechnician} className="p-3 rounded-xl border bg-muted/20 space-y-3">
+                                      <div>
+                                        <p className="font-semibold text-sm truncate">{tech.Username}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {tech.Specialties?.join(', ') || 'Sin especialidades registradas'}
+                                        </p>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="flex items-center justify-between text-[11px]">
+                                          <span>Carga</span>
+                                          <span>{tech.WorkLoad || 0}/{tech.Availability || 0}</span>
+                                        </div>
+                                        <Progress value={completion} className="h-1.5" />
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        className="w-full"
+                                        disabled={assigningTechnicianId === tech.idTechnician}
+                                        onClick={() => handleManualAssign(tech.idTechnician)}
+                                      >
+                                        {assigningTechnicianId === tech.idTechnician ? (
+                                          <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Asignando...
+                                          </>
+                                        ) : tech.idTechnician === selectedTicket?.Assign?.Technician?.idTechnician ? (
+                                          'Reasignar'
+                                        ) : (
+                                          'Asignar'
+                                        )}
+                                      </Button>
+                                    </div>
+                                  );
+                                })
+                              ) : (
+                                <div className="text-xs text-muted-foreground text-center py-4">
+                                  No hay técnicos que coincidan con los filtros seleccionados.
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Selected Date Details */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Ticket className="w-5 h-5 text-primary" />
-              {selectedDate
-                ? `${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]}`
-                : 'Selecciona un día'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {selectedDate ? (
-              selectedDateTickets.length > 0 ? (
-                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 
-                  [&::-webkit-scrollbar]:w-2
-                  [&::-webkit-scrollbar-track]:bg-transparent
-                  [&::-webkit-scrollbar-thumb]:bg-border
-                  [&::-webkit-scrollbar-thumb]:rounded-full
-                  hover:[&::-webkit-scrollbar-thumb]:bg-border/80">
-                  {selectedDateTickets.map((ticket) => (
-                    <Card key={ticket.idTicket} className="border-border/50 bg-muted/20">
-                      <CardContent className="p-3 space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-sm truncate">
-                              {ticket.Title}
-                            </p>
-                            <Badge
-                              variant="outline"
-                              className={`text-xs mt-1 ${getStateColor(ticket.State).replace('bg-', 'border-')} ${getStateColor(ticket.State).replace('bg-', 'text-')}`}
-                            >
-                              {ticket.State}
-                            </Badge>
-                          </div>
-                          <Badge variant="outline" className="text-xs shrink-0">
-                            #{ticket.idTicket}
-                          </Badge>
-                        </div>
-
-                        <div className="text-xs text-muted-foreground space-y-1">
-                          <div className="flex items-center gap-1">
-                            <User className="w-3 h-3" />
-                            <span className="truncate">{ticket.User?.Username}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{new Date(ticket.CreationDate).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
-                          </div>
-                        </div>
-
-                        {ticket.Assign?.Technician && (
-                          <div className="flex items-center gap-2 pt-2 border-t border-border/50">
-                            <Avatar className="w-6 h-6">
-                              <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${ticket.Assign.Technician.Username}`} />
-                              <AvatarFallback className="bg-accent/10 text-accent text-xs">
-                                {ticket.Assign.Technician.Username.substring(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-xs truncate">{ticket.Assign.Technician.Username}</span>
-                          </div>
-                        )}
-
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          className="w-full gap-2 mt-2"
-                          onClick={() => navigate('/tickets')}
-                        >
-                          <Eye className="w-3 h-3" />
-                          Ver Ticket
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <CalendarIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">No hay tickets en esta fecha</p>
-                </div>
-              )
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <CalendarIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">Selecciona un día para ver los tickets</p>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground py-10 text-center">
+                    Selecciona un ticket para ver los detalles.
+                  </div>
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground py-12 text-center">
+              No hay tickets registrados para esta fecha.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {stateDialogNextState && (
+        <StateUpdateDialog
+          open={isStateDialogOpen}
+          onOpenChange={setIsStateDialogOpen}
+          ticket={targetTicket}
+          nextState={stateDialogNextState}
+          onSubmit={handleStateChange}
+          loading={isUpdatingState}
+        />
+      )}
     </div>
   );
 }

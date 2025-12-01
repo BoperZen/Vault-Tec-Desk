@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '@/context/UserContext';
+import { useRole } from '@/hooks/use-role';
 import { 
   Ticket, 
   User, 
@@ -37,6 +38,19 @@ import {
 import TicketService from '@/services/TicketService';
 import CategoryService from '@/services/CategoryService';
 import LabelService from '@/services/LabelService';
+import { formatUtcToLocalDateTime } from '@/lib/utils';
+
+const formatDateTimeForDB = (value) => {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    return formatDateTimeForDB(new Date());
+  }
+
+  const pad = (num) => String(num).padStart(2, '0');
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+         `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
 
 /**
  * Componente para crear tickets
@@ -45,6 +59,7 @@ import LabelService from '@/services/LabelService';
 export default function UpkeepTicket() {
   const navigate = useNavigate();
   const { currentUser } = useUser();
+  const { isAdmin, isClient, isLoadingRole } = useRole();
 
   // Estados del formulario
   const [loading, setLoading] = useState(false);
@@ -62,7 +77,7 @@ export default function UpkeepTicket() {
     idTicket: '',
     Title: '',
     Description: '',
-    CreationDate: new Date().toISOString().slice(0, 16), // formato datetime-local
+    CreationDate: formatDateTimeForDB(),
     idCategory: '',
     idState: '1', // Por defecto: Pendiente
     idLabel: '',
@@ -76,6 +91,13 @@ export default function UpkeepTicket() {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    if (isLoadingRole) return;
+    if (!isAdmin && !isClient) {
+      navigate('/tickets');
+    }
+  }, [isAdmin, isClient, isLoadingRole, navigate]);
 
   // Detectar categoría y prioridad cuando se selecciona una etiqueta
   useEffect(() => {
@@ -150,9 +172,10 @@ export default function UpkeepTicket() {
    * Maneja los cambios en los campos del formulario
    */
   const handleInputChange = (field, value) => {
+    const processedValue = field === 'CreationDate' ? formatDateTimeForDB(value) : value;
     setFormData(prev => ({
       ...prev,
-      [field]: value
+      [field]: processedValue
     }));
     // Limpiar mensajes al editar
     if (error) setError(null);
@@ -268,7 +291,7 @@ export default function UpkeepTicket() {
         const formDataToSend = new FormData();
         formDataToSend.append('title', formData.Title.trim());
         formDataToSend.append('Description', formData.Description.trim());
-        formDataToSend.append('CreationDate', formData.CreationDate);
+        formDataToSend.append('CreationDate', formatDateTimeForDB(formData.CreationDate));
         formDataToSend.append('idCategory', parseInt(formData.idCategory));
         formDataToSend.append('idState', parseInt(formData.idState));
         formDataToSend.append('Priority', parseInt(formData.Priority));
@@ -281,7 +304,7 @@ export default function UpkeepTicket() {
         const ticketData = {
           title: formData.Title.trim(),
           Description: formData.Description.trim(),
-          CreationDate: formData.CreationDate,
+          CreationDate: formatDateTimeForDB(formData.CreationDate),
           idCategory: parseInt(formData.idCategory),
           idState: parseInt(formData.idState),
           Priority: parseInt(formData.Priority),
@@ -546,15 +569,7 @@ export default function UpkeepTicket() {
               {/* Fecha de Creación */}
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-4 w-4" />
-                <span>
-                  {new Date(formData.CreationDate).toLocaleString('es-ES', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </span>
+                <span>{formatUtcToLocalDateTime(formData.CreationDate)}</span>
               </div>
               
               {/* Botones */}

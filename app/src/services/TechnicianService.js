@@ -27,6 +27,16 @@ class TechnicianService {
   }
 
   /**
+   * Obtiene un técnico a partir del ID de usuario asociado
+   * GET http://localhost:81/Vault-Tec-Desk/api/technician/byuser/{idUser}
+   * @param {number} userId - ID del usuario
+   * @returns {Promise}
+   */
+  getTechnicianByUser(userId) {
+    return axios.get(`${BASE_URL}/byuser/${userId}`);
+  }
+
+  /**
    * Crea un nuevo técnico en el sistema
    * POST http://localhost:81/Vault-Tec-Desk/api/technician
    * @param {object} technician - Objeto con los datos del técnico a crear

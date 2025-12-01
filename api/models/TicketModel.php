@@ -60,6 +60,9 @@ class TicketModel
                 $category = $categoryM->get($vResultado->idCategory);
                 $vResultado->Category = $category ? $category->Categoryname : null;
                 
+                // Agregar objeto CategoryData completo con especialidades
+                $vResultado->CategoryData = $category;
+                
                 // Obtener SLA de la categoría (intentar ambos formatos de nombre)
                 $idSLA = null;
                 if ($category && isset($category->idSLA)) {
@@ -244,12 +247,20 @@ class TicketModel
         // Priority por defecto
         $priority = isset($objeto->Priority) ? (int)$objeto->Priority : 3;
 
-        // Consulta SQL para insertar - usar NOW() de MySQL para respetar zona horaria
+        $creationDate = isset($objeto->CreationDate)
+            ? $this->normalizeDateTime($objeto->CreationDate)
+            : null;
+
+        $creationDateValue = $creationDate
+            ? "'{$this->enlace->escapeString($creationDate)}'"
+            : "NOW()";
+
+        // Consulta SQL para insertar - usar fecha proporcionada (OSI) o NOW() como respaldo
         $vSql = "INSERT INTO Ticket (title, Description, CreationDate, Priority, idCategory, idState, idUser)
                  VALUES (
                      '{$this->enlace->escapeString($objeto->title)}',
                      '{$this->enlace->escapeString($objeto->Description)}',
-                     NOW(),
+                     $creationDateValue,
                      $priority,
                      {$objeto->idCategory},
                      $idState,
@@ -265,7 +276,7 @@ class TicketModel
                                 $idTicket,
                                 $idState,
                                 {$objeto->idUser},
-                                'Ticket creado',
+                                'Ticket pendiente',
                                 NOW()
                             )";
         $idStateRecord = $this->enlace->executeSQL_DML_last($vSqlStateRecord);
@@ -286,6 +297,33 @@ class TicketModel
 
         // Retornar el ticket completo creado
         return $this->get($idTicket);
+    }
+
+    /**
+     * Normaliza una fecha recibida desde el frontend al formato Y-m-d H:i:s
+     * Admitimos múltiples formatos comunes y caemos en null si no son válidos
+     */
+    private function normalizeDateTime($value)
+    {
+        if (!isset($value) || empty($value)) {
+            return null;
+        }
+
+        $formats = ['Y-m-d H:i:s', 'Y-m-d\TH:i', 'Y-m-d\TH:i:s'];
+        foreach ($formats as $format) {
+            $date = DateTime::createFromFormat($format, $value);
+            if ($date instanceof DateTime) {
+                return $date->format('Y-m-d H:i:s');
+            }
+        }
+
+        // Intentar parsear con DateTime regular por si envían ISO completo
+        try {
+            $fallback = new DateTime($value);
+            return $fallback->format('Y-m-d H:i:s');
+        } catch (Exception $e) {
+            return null;
+        }
     }
 
     /**
@@ -323,17 +361,75 @@ class TicketModel
 
         if (isset($objeto->idState)) {
             $oldTicket = $this->get($idTicket);
+            if (!$oldTicket) {
+                throw new Exception('El ticket especificado no existe');
+            }
+
+            if (!isset($objeto->idUser)) {
+                throw new Exception('Se requiere el usuario que realiza el cambio de estado');
+            }
+
             $newState = (int)$objeto->idState;
-            
-            // Si el estado cambió, crear un StateRecord
+            $currentState = isset($oldTicket->idState) ? (int)$oldTicket->idState : null;
+
+            $userModel = new UserModel();
+            $actingUser = $userModel->get((int)$objeto->idUser);
+            if (!$actingUser) {
+                throw new Exception('Usuario no válido para registrar el cambio de estado');
+            }
+
+            $actingRole = null;
+            if (isset($actingUser->idRol)) {
+                $actingRole = (int)$actingUser->idRol;
+            } elseif (isset($actingUser->rol) && isset($actingUser->rol->idRol)) {
+                $actingRole = (int)$actingUser->rol->idRol;
+            }
+
+            if (!$actingRole) {
+                throw new Exception('No se pudo determinar el rol del usuario');
+            }
+
+            $technicianTransitions = [
+                2 => [3],
+                3 => [4],
+            ];
+            $clientTransitions = [
+                4 => [5],
+            ];
+            $adminTransitions = [
+                4 => [5],
+            ];
+
+            $skipValidation = !empty($objeto->skipStateValidation);
+
+            if (!$skipValidation) {
+                if ($actingRole === 1) {
+                    $allowed = $technicianTransitions[$currentState] ?? [];
+                    if (!in_array($newState, $allowed, true)) {
+                        throw new Exception('Los técnicos solo pueden avanzar a En Proceso o marcar como Resuelto');
+                    }
+                } elseif ($actingRole === 2) {
+                    $allowed = $clientTransitions[$currentState] ?? [];
+                    if (!in_array($newState, $allowed, true)) {
+                        throw new Exception('Solo puedes cerrar tickets que ya fueron resueltos');
+                    }
+                } elseif ($actingRole === 3) {
+                    $allowed = $adminTransitions[$currentState] ?? [];
+                    if (!in_array($newState, $allowed, true)) {
+                        throw new Exception('Los administradores solo pueden cerrar tickets resueltos');
+                    }
+                } else {
+                    throw new Exception('Rol no autorizado para actualizar estados');
+                }
+            }
+
             if ($oldTicket && isset($oldTicket->idState) && $oldTicket->idState != $newState) {
-                $observation = isset($objeto->StateObservation) 
+                $observation = isset($objeto->StateObservation)
                     ? $this->enlace->escapeString($objeto->StateObservation)
                     : 'Estado actualizado';
-                
-                // Obtener idUser del ticket actual o del objeto
-                $idUserForRecord = isset($objeto->idUser) ? (int)$objeto->idUser : (int)$oldTicket->idUser;
-                
+
+                $idUserForRecord = (int)$objeto->idUser;
+
                 $vSqlStateRecord = "INSERT INTO StateRecord (idTicket, idState, idUser, Observation, DateOfChange)
                                     VALUES (
                                         $idTicket,
@@ -342,9 +438,25 @@ class TicketModel
                                         '$observation',
                                         NOW()
                                     )";
-                $this->enlace->executeSQL_DML($vSqlStateRecord);
+                $idStateRecord = $this->enlace->executeSQL_DML_last($vSqlStateRecord);
+
+                if (!empty($objeto->StateImages) && is_array($objeto->StateImages)) {
+                    $imageM = new ImageModel();
+                    foreach ($objeto->StateImages as $imageString) {
+                        $decoded = $this->decodeImagePayload($imageString);
+                        if ($decoded === null) {
+                            continue;
+                        }
+
+                        $imageData = (object) [
+                            'Image' => $decoded,
+                            'idStateRecord' => $idStateRecord,
+                        ];
+                        $imageM->create($imageData);
+                    }
+                }
             }
-            
+
             $updates[] = "idState = $newState";
         }
 
@@ -356,16 +468,33 @@ class TicketModel
             }
         }
 
-        // Si no hay nada que actualizar, retornar el ticket actual
+        // Si no hay campos para actualizar, devolver la versión actual
         if (empty($updates)) {
             return $this->get($idTicket);
         }
 
-        // Ejecutar UPDATE
+        // Ejecutar UPDATE con los cambios recopilados
         $vSql = "UPDATE Ticket SET " . implode(', ', $updates) . " WHERE idTicket = $idTicket";
         $this->enlace->executeSQL_DML($vSql);
 
-        // Retornar el ticket actualizado
+        // Retornar el ticket actualizado con sus relaciones
         return $this->get($idTicket);
+    }
+
+    private function decodeImagePayload($value)
+    {
+        if (!is_string($value) || $value === '') {
+            return null;
+        }
+
+        if (strpos($value, 'base64,') !== false) {
+            $parts = explode('base64,', $value, 2);
+            $value = $parts[1];
+        }
+
+        $value = str_replace(' ', '+', $value);
+        $decoded = base64_decode($value, true);
+
+        return $decoded !== false ? $decoded : null;
     }
 }
