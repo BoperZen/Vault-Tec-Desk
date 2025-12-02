@@ -12,26 +12,14 @@ import {
   Filter,
   Eye,
   Hash,
-  Edit3,
-  Loader2,
-  ChevronDown,
-  Search,
-  Upload,
-  Trash2,
 } from 'lucide-react';
 import { useRole } from '@/hooks/use-role';
 import { useUser } from '@/context/UserContext';
-import { useNotification } from '@/context/NotificationContext';
 import TicketService from '@/services/TicketService';
 import TechnicianService from '@/services/TechnicianService';
-import AssignService from '@/services/AssignService';
-import CategoryService from '@/services/CategoryService';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -39,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import StateUpdateDialog from '@/components/Tickets/StateUpdateDialog';
 import { formatUtcToLocalDate, formatUtcToLocalTime } from '@/lib/utils';
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -59,29 +46,6 @@ const getStateColor = (state) => {
   return colors[state] || 'bg-muted';
 };
 
-const SLA_URGENCY_STYLES = {
-  healthy: {
-    text: 'text-green-500',
-    bar: '[&>div]:bg-green-500',
-  },
-  warning: {
-    text: 'text-yellow-500',
-    bar: '[&>div]:bg-yellow-500',
-  },
-  critical: {
-    text: 'text-red-500',
-    bar: '[&>div]:bg-red-500',
-  },
-  expired: {
-    text: 'text-red-600',
-    bar: '[&>div]:bg-red-600',
-  },
-  neutral: {
-    text: 'text-muted-foreground',
-    bar: '[&>div]:bg-muted-foreground',
-  },
-};
-
 const getTechnicianInitials = (name = '') => {
   return name
     .trim()
@@ -94,8 +58,7 @@ const getTechnicianInitials = (name = '') => {
 export default function WorkCalendar() {
   const navigate = useNavigate();
   const { isAdmin, isLoadingRole } = useRole();
-  const { technicianProfile, isTechnicianLoading, currentUser } = useUser();
-  const { showNotification } = useNotification();
+  const { technicianProfile, isTechnicianLoading } = useUser();
   const technicianIdValue = technicianProfile?.idTechnician ? Number(technicianProfile.idTechnician) : null;
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -106,23 +69,9 @@ export default function WorkCalendar() {
   const [selectedTechnician, setSelectedTechnician] = useState(
     isAdmin ? 'all' : (technicianIdValue ? technicianIdValue.toString() : null)
   );
-  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filterType, setFilterType] = useState('all'); // 'all' o 'assigned'
-  const [isStateDialogOpen, setIsStateDialogOpen] = useState(false);
-  const [targetTicket, setTargetTicket] = useState(null);
-  const [isUpdatingState, setIsUpdatingState] = useState(false);
-  const [assigningTechnicianId, setAssigningTechnicianId] = useState(null);
-  const [techSearch, setTechSearch] = useState('');
-  const [onlyMatchingSpecialties, setOnlyMatchingSpecialties] = useState(true);
-  const [capacityFilter, setCapacityFilter] = useState('all');
-  const [isAssignPanelOpen, setIsAssignPanelOpen] = useState(false);
-  const [assignObservation, setAssignObservation] = useState('');
-  const [assignEvidence, setAssignEvidence] = useState(null);
-  const [assignEvidencePreview, setAssignEvidencePreview] = useState(null);
-  const [assignEvidenceError, setAssignEvidenceError] = useState('');
-  const [stateDialogNextState, setStateDialogNextState] = useState(null);
 
   useEffect(() => {
     if (isLoadingRole) return;
@@ -141,28 +90,6 @@ export default function WorkCalendar() {
       setSelectedTechnician(technicianIdValue.toString());
     }
   }, [isAdmin, technicianIdValue]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    let isMounted = true;
-
-    const fetchCategories = async () => {
-      try {
-        const response = await CategoryService.getCategories();
-        if (response.data?.success && isMounted) {
-          setCategories(response.data.data || []);
-        }
-      } catch (catError) {
-        console.error('Error al cargar categorías:', catError);
-      }
-    };
-
-    fetchCategories();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isAdmin]);
 
   const loadData = async () => {
     try {
@@ -209,50 +136,6 @@ export default function WorkCalendar() {
     }
   };
 
-  const handleStateChange = async ({ stateId, comment, image }) => {
-    if (!targetTicket || !stateId || !comment.trim()) return;
-    if (!currentUser?.idUser) {
-      showNotification('No se pudo identificar al usuario actual', 'error');
-      return;
-    }
-
-    setIsUpdatingState(true);
-    try {
-      const payload = {
-        idTicket: targetTicket.idTicket,
-        idState: stateId,
-        StateObservation: comment.trim(),
-        idUser: Number(currentUser.idUser),
-      };
-
-      if (image) {
-        payload.StateImages = [image];
-      }
-
-      const response = await TicketService.updateTicket(payload);
-      if (response.data?.success) {
-        const updatedTicket = response.data.data;
-        setTickets((prev) => prev.map((ticket) => (
-          ticket.idTicket === updatedTicket.idTicket ? updatedTicket : ticket
-        )));
-        setSelectedTicket((prev) => (
-          prev && prev.idTicket === updatedTicket.idTicket ? updatedTicket : prev
-        ));
-        setTargetTicket(updatedTicket);
-        showNotification('Estado actualizado correctamente', 'success');
-        setIsStateDialogOpen(false);
-        setStateDialogNextState(null);
-      } else {
-        throw new Error('Respuesta inválida del servidor');
-      }
-    } catch (updateError) {
-      console.error('Error al actualizar estado:', updateError);
-      showNotification('No se pudo actualizar el estado del ticket', 'error');
-    } finally {
-      setIsUpdatingState(false);
-    }
-  };
-
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -287,173 +170,6 @@ export default function WorkCalendar() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, tickets]);
 
-  const categoriesById = useMemo(() => {
-    if (!Array.isArray(categories) || categories.length === 0) {
-      return new Map();
-    }
-
-    return categories.reduce((map, category) => {
-      if (category?.idCategory) {
-        map.set(Number(category.idCategory), category);
-      }
-      return map;
-    }, new Map());
-  }, [categories]);
-
-  const selectedTicketCategory = useMemo(() => {
-    if (!selectedTicket?.idCategory) return null;
-    return categoriesById.get(Number(selectedTicket.idCategory)) || null;
-  }, [categoriesById, selectedTicket?.idCategory]);
-
-  const requiredSpecialtyIds = useMemo(() => {
-    return selectedTicketCategory?.SpecialtyIds || [];
-  }, [selectedTicketCategory]);
-
-  const rankedTechnicians = useMemo(() => {
-    if (!isAdmin || technicians.length === 0 || !selectedTicket) {
-      return [];
-    }
-
-    const requirements = Array.isArray(requiredSpecialtyIds)
-      ? requiredSpecialtyIds.map((id) => Number(id))
-      : [];
-
-    return technicians
-      .map((tech) => {
-        const specialtyIds = Array.isArray(tech.SpecialtyIds)
-          ? tech.SpecialtyIds.map((id) => Number(id))
-          : [];
-        const matches = requirements.filter((id) => specialtyIds.includes(id));
-        const coversAll = requirements.length === 0 ? true : matches.length === requirements.length;
-        const matchRatio = requirements.length === 0 ? 0 : matches.length / requirements.length;
-
-        const availability = typeof tech.Availability === 'number' ? tech.Availability : 0;
-        const workload = typeof tech.WorkLoad === 'number' ? tech.WorkLoad : 0;
-        const capacity = availability > 0 ? Math.max(0, availability - workload) : 0;
-        const capacityScore = availability > 0 ? capacity / availability : 0;
-
-        const score = matchRatio * 0.7 + capacityScore * 0.3;
-
-        return {
-          ...tech,
-          matchCount: matches.length,
-          coversAll,
-          capacity,
-          availability,
-          workload,
-          score,
-        };
-      })
-      .sort((a, b) => b.score - a.score);
-  }, [isAdmin, technicians, requiredSpecialtyIds, selectedTicket]);
-
-  const visibleTechnicians = useMemo(() => {
-    if (!isAdmin) return [];
-
-    const lookup = techSearch.trim().toLowerCase();
-
-    return rankedTechnicians.filter((tech) => {
-      const matchesSearch = lookup.length === 0
-        ? true
-        : tech.Username?.toLowerCase().includes(lookup) || tech.Email?.toLowerCase().includes(lookup);
-
-      const matchesSpecialty = !onlyMatchingSpecialties || requiredSpecialtyIds.length === 0
-        ? true
-        : tech.matchCount > 0;
-
-      let matchesCapacity = true;
-      if (capacityFilter === 'available') {
-        matchesCapacity = (tech.capacity ?? 0) > 0;
-      } else if (capacityFilter === 'full') {
-        matchesCapacity = (tech.capacity ?? 0) <= 0;
-      }
-
-      return matchesSearch && matchesSpecialty && matchesCapacity;
-    });
-  }, [isAdmin, rankedTechnicians, techSearch, onlyMatchingSpecialties, capacityFilter, requiredSpecialtyIds.length]);
-
-  const handleManualAssign = async (technicianId) => {
-    if (!selectedTicket) {
-      showNotification('Selecciona un ticket para asignar', 'warning');
-      return;
-    }
-
-    if (!assignObservation.trim()) {
-      showNotification('Ingresa una observación para la asignación manual', 'warning');
-      return;
-    }
-
-    if (!currentUser?.idUser) {
-      showNotification('No se pudo identificar al usuario actual', 'error');
-      return;
-    }
-
-    setAssigningTechnicianId(technicianId);
-    try {
-      const payload = {
-        idTicket: selectedTicket.idTicket,
-        idTechnician: technicianId,
-        PriorityScore: selectedTicket.Priority || null,
-        StateObservation: assignObservation.trim(),
-        idUser: Number(currentUser.idUser),
-      };
-
-      if (assignEvidence) {
-        payload.StateImages = [assignEvidence];
-      }
-
-      const response = await AssignService.createAssignment(payload);
-      if (response.data?.success) {
-        const updatedTicket = response.data.data;
-        setTickets((prev) => prev.map((ticket) => (
-          ticket.idTicket === updatedTicket.idTicket ? updatedTicket : ticket
-        )));
-        setSelectedTicket(updatedTicket);
-        showNotification('Ticket asignado exitosamente', 'success');
-        setAssignObservation('');
-        setAssignEvidence(null);
-        setAssignEvidencePreview(null);
-        setAssignEvidenceError('');
-      } else {
-        throw new Error('Respuesta inválida del servidor');
-      }
-    } catch (assignError) {
-      console.error('Error al asignar ticket:', assignError);
-      showNotification('No se pudo asignar el ticket', 'error');
-    } finally {
-      setAssigningTechnicianId(null);
-    }
-  };
-
-  const handleAssignEvidenceChange = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setAssignEvidenceError('Solo se permiten archivos de imagen.');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setAssignEvidenceError('La imagen no debe superar los 5MB.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setAssignEvidence(reader.result);
-      setAssignEvidencePreview(reader.result);
-      setAssignEvidenceError('');
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const clearAssignEvidence = () => {
-    setAssignEvidence(null);
-    setAssignEvidencePreview(null);
-    setAssignEvidenceError('');
-  };
-
   const handleNavigateToTicket = () => {
     if (!selectedTicket) return;
     navigate(`/tickets?ticketId=${selectedTicket.idTicket}`);
@@ -471,14 +187,6 @@ export default function WorkCalendar() {
       return stillExists || selectedDateTickets[0];
     });
   }, [selectedDateTickets]);
-
-  useEffect(() => {
-    setIsAssignPanelOpen(false);
-    setAssignObservation('');
-    setAssignEvidence(null);
-    setAssignEvidencePreview(null);
-    setAssignEvidenceError('');
-  }, [selectedTicket?.idTicket]);
 
   if (loading) {
     return (
@@ -954,16 +662,6 @@ export default function WorkCalendar() {
         </CardContent>
       </Card>
 
-      {stateDialogNextState && (
-        <StateUpdateDialog
-          open={isStateDialogOpen}
-          onOpenChange={setIsStateDialogOpen}
-          ticket={targetTicket}
-          nextState={stateDialogNextState}
-          onSubmit={handleStateChange}
-          loading={isUpdatingState}
-        />
-      )}
     </div>
   );
 }
