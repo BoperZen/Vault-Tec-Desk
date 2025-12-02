@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Calendar as CalendarIcon, 
@@ -24,7 +24,6 @@ import { useUser } from '@/context/UserContext';
 import { useNotification } from '@/context/NotificationContext';
 import TicketService from '@/services/TicketService';
 import TechnicianService from '@/services/TechnicianService';
-import StateService from '@/services/StateService';
 import AssignService from '@/services/AssignService';
 import CategoryService from '@/services/CategoryService';
 import { Badge } from '@/components/ui/badge';
@@ -92,55 +91,9 @@ const getTechnicianInitials = (name = '') => {
     .join('') || '—';
 };
 
-const getSlaSummary = (ticket) => {
-  if (!ticket?.SLA) {
-    return {
-      label: 'Sin SLA configurado',
-      remaining: '—',
-      percentage: 0,
-      urgency: 'neutral',
-    };
-  }
-
-  const total = ticket.SLA.ResponseTime ?? ticket.SLA.ResolutionTime ?? 1;
-  const remainingRaw = ticket.SLA.ResponseHoursRemaining ?? ticket.SLA.ResolutionHoursRemaining ?? 0;
-  const remaining = Math.max(-total, Number(remainingRaw));
-  const used = total - Math.max(0, remaining);
-  const percentage = Math.min(100, Math.max(0, (used / total) * 100));
-
-  let urgency = 'healthy';
-  if (remaining <= 0) {
-    urgency = 'expired';
-  } else if (percentage >= 80) {
-    urgency = 'critical';
-  } else if (percentage >= 60) {
-    urgency = 'warning';
-  }
-
-  return {
-    label: remaining <= 0 ? 'SLA vencido' : 'Tiempo SLA restante',
-    remaining: `${Math.max(0, remaining).toFixed(1)} h`,
-    percentage,
-    urgency,
-  };
-};
-
-const TECHNICIAN_TRANSITIONS = {
-  2: 3,
-  3: 4,
-};
-
-const CLIENT_TRANSITIONS = {
-  4: 5,
-};
-
-const ADMIN_TRANSITIONS = {
-  4: 5,
-};
-
 export default function WorkCalendar() {
   const navigate = useNavigate();
-  const { isAdmin, isTechnician, isClient, isLoadingRole } = useRole();
+  const { isAdmin, isLoadingRole } = useRole();
   const { technicianProfile, isTechnicianLoading, currentUser } = useUser();
   const { showNotification } = useNotification();
   const technicianIdValue = technicianProfile?.idTechnician ? Number(technicianProfile.idTechnician) : null;
@@ -157,7 +110,6 @@ export default function WorkCalendar() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filterType, setFilterType] = useState('all'); // 'all' o 'assigned'
-  const [states, setStates] = useState([]);
   const [isStateDialogOpen, setIsStateDialogOpen] = useState(false);
   const [targetTicket, setTargetTicket] = useState(null);
   const [isUpdatingState, setIsUpdatingState] = useState(false);
@@ -189,26 +141,6 @@ export default function WorkCalendar() {
       setSelectedTechnician(technicianIdValue.toString());
     }
   }, [isAdmin, technicianIdValue]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchStates = async () => {
-      try {
-        const response = await StateService.getStates();
-        if (response.data?.success && isMounted) {
-          setStates(response.data.data || []);
-        }
-      } catch (stateError) {
-        console.error('Error al cargar estados:', stateError);
-      }
-    };
-
-    fetchStates();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -275,18 +207,6 @@ export default function WorkCalendar() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const openStateDialog = (ticket) => {
-    const nextState = getNextStateForTicket(ticket);
-    if (!nextState) {
-      showNotification('No hay cambios de estado disponibles para este ticket', 'warning');
-      return;
-    }
-
-    setTargetTicket(ticket);
-    setStateDialogNextState(nextState);
-    setIsStateDialogOpen(true);
   };
 
   const handleStateChange = async ({ stateId, comment, image }) => {
@@ -364,6 +284,7 @@ export default function WorkCalendar() {
   const selectedDateTickets = useMemo(() => {
     if (!selectedDate) return [];
     return getTicketsForDate(selectedDate);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, tickets]);
 
   const categoriesById = useMemo(() => {
@@ -384,59 +305,9 @@ export default function WorkCalendar() {
     return categoriesById.get(Number(selectedTicket.idCategory)) || null;
   }, [categoriesById, selectedTicket?.idCategory]);
 
-  const requiredSpecialtyIds = selectedTicketCategory?.SpecialtyIds || [];
-  const statesById = useMemo(() => {
-    if (!Array.isArray(states)) {
-      return new Map();
-    }
-
-    return states.reduce((map, state) => {
-      if (state?.idState) {
-        map.set(Number(state.idState), state);
-      }
-      return map;
-    }, new Map());
-  }, [states]);
-
-  const getNextStateForTicket = useCallback((ticket) => {
-    if (!ticket) return null;
-    const currentStateId = Number(ticket.idState);
-    if (!Number.isFinite(currentStateId)) return null;
-
-    let nextStateId = null;
-    if (isTechnician) {
-      nextStateId = TECHNICIAN_TRANSITIONS[currentStateId] ?? null;
-    } else if (isClient) {
-      nextStateId = CLIENT_TRANSITIONS[currentStateId] ?? null;
-    } else if (isAdmin) {
-      nextStateId = ADMIN_TRANSITIONS[currentStateId] ?? null;
-    }
-
-    if (!nextStateId) {
-      return null;
-    }
-
-    return statesById.get(nextStateId) || null;
-  }, [isTechnician, isClient, isAdmin, statesById]);
-
-  const selectedTicketNextState = useMemo(
-    () => getNextStateForTicket(selectedTicket),
-    [selectedTicket, getNextStateForTicket]
-  );
-
-  const changeStateLabel = useMemo(() => {
-    if (!selectedTicketNextState || !selectedTicket) {
-      return 'Cambiar estado';
-    }
-
-    const stateId = Number(selectedTicket.idState);
-    if (stateId === 2) return 'Responder ticket';
-    if (stateId === 3) return 'Marcar como resuelto';
-    if (stateId === 4) return 'Cerrar ticket';
-    return 'Cambiar estado';
-  }, [selectedTicket, selectedTicketNextState]);
-
-  const canShowStateAction = Boolean(selectedTicketNextState);
+  const requiredSpecialtyIds = useMemo(() => {
+    return selectedTicketCategory?.SpecialtyIds || [];
+  }, [selectedTicketCategory]);
 
   const rankedTechnicians = useMemo(() => {
     if (!isAdmin || technicians.length === 0 || !selectedTicket) {
@@ -637,70 +508,42 @@ export default function WorkCalendar() {
           ))}
         </div>
 
-        {/* Calendar and Details Skeleton */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendar Skeleton */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-5 w-5 bg-muted animate-pulse rounded-md" />
-                  <div className="h-6 w-32 bg-muted animate-pulse rounded-lg" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-9 w-9 bg-muted animate-pulse rounded-md" />
-                  <div className="h-9 w-16 bg-muted animate-pulse rounded-md" />
-                  <div className="h-9 w-9 bg-muted animate-pulse rounded-md" />
-                </div>
+        {/* Calendar Skeleton */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-5 w-5 bg-muted animate-pulse rounded-md" />
+                <div className="h-6 w-32 bg-muted animate-pulse rounded-lg" />
               </div>
-            </CardHeader>
-            <CardContent>
-              {/* Day headers */}
-              <div className="grid grid-cols-7 gap-2 mb-2">
-                {Array.from({ length: 7 }).map((_, i) => (
-                  <div key={i} className="h-4 bg-muted animate-pulse rounded-md" />
-                ))}
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-9 bg-muted animate-pulse rounded-md" />
+                <div className="h-9 w-16 bg-muted animate-pulse rounded-md" />
+                <div className="h-9 w-9 bg-muted animate-pulse rounded-md" />
               </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {/* Day headers */}
+            <div className="grid grid-cols-7 gap-3 mb-3">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div key={i} className="h-4 bg-muted animate-pulse rounded-md text-center" />
+              ))}
+            </div>
 
-              {/* Calendar grid */}
-              <div className="grid grid-cols-7 gap-2">
-                {Array.from({ length: 35 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="aspect-square p-2 rounded-lg border-2 border-border bg-muted/20"
-                  >
-                    <div className="h-4 w-6 bg-muted animate-pulse rounded-md" />
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Details Skeleton */}
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <div className="h-6 w-32 bg-muted animate-pulse rounded-lg" />
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <Card key={i} className="border-border/50 bg-muted/20">
-                    <CardContent className="p-3 space-y-2">
-                      <div className="space-y-2">
-                        <div className="h-4 w-full bg-muted animate-pulse rounded-md" />
-                        <div className="h-5 w-20 bg-muted animate-pulse rounded-md" />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="h-3 w-full bg-muted animate-pulse rounded-md" />
-                        <div className="h-3 w-24 bg-muted animate-pulse rounded-md" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            {/* Calendar grid */}
+            <div className="grid grid-cols-7 gap-3">
+              {Array.from({ length: 35 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-[120px] rounded-2xl border border-border bg-muted/10 p-3"
+                >
+                  <div className="h-4 w-6 bg-muted animate-pulse rounded-md" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -1009,21 +852,55 @@ export default function WorkCalendar() {
                       </div>
                     </div>
 
-                    <div className="bg-background/80 rounded-xl p-3 border">
-                      {(() => {
-                        const sla = getSlaSummary(selectedTicket);
-                        const styles = SLA_URGENCY_STYLES[sla.urgency] || SLA_URGENCY_STYLES.neutral;
-                        return (
-                          <>
-                            <div className="flex items-center justify-between text-sm mb-2">
-                              <p className="font-medium">{sla.label}</p>
-                              <p className={`font-semibold ${styles.text}`}>{sla.remaining}</p>
-                            </div>
-                            <Progress value={sla.percentage} className={`h-2 ${styles.bar}`} />
-                          </>
-                        );
-                      })()}
-                    </div>
+                    {/* SLA Badges - Tiempo de Respuesta y Resolución */}
+                    {selectedTicket.SLA && (
+                      <div className="bg-background/80 rounded-xl p-3 border flex flex-wrap gap-2">
+                        {/* Tiempo de Respuesta - Solo estados 1 y 2 */}
+                        {(Number(selectedTicket.idState) === 1 || Number(selectedTicket.idState) === 2) && (
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${
+                              (() => {
+                                const hoursRemaining = selectedTicket.SLA.ResponseHoursRemaining;
+                                if (hoursRemaining <= 0) return 'border-destructive/50 text-destructive bg-destructive/10';
+                                if (hoursRemaining <= 0.5) return 'border-yellow-500/50 text-yellow-600';
+                                return 'border-green-500/50 text-green-600';
+                              })()
+                            }`}
+                          >
+                            <Clock className="w-3 h-3 mr-1" />
+                            Resp: {(() => {
+                              const hoursRemaining = selectedTicket.SLA.ResponseHoursRemaining;
+                              return hoursRemaining <= 0 ? 'Vencida' : `${hoursRemaining}h`;
+                            })()}
+                          </Badge>
+                        )}
+                        {/* Tiempo de Resolución - Solo estados 1, 2 y 3 */}
+                        {(Number(selectedTicket.idState) === 1 || Number(selectedTicket.idState) === 2 || Number(selectedTicket.idState) === 3) && (
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${
+                              (() => {
+                                const hoursRemaining = selectedTicket.SLA.ResolutionHoursRemaining;
+                                if (hoursRemaining <= 0) return 'border-destructive/50 text-destructive bg-destructive/10';
+                                if (hoursRemaining <= 2) return 'border-yellow-500/50 text-yellow-600';
+                                return 'border-green-500/50 text-green-600';
+                              })()
+                            }`}
+                          >
+                            <Clock className="w-3 h-3 mr-1" />
+                            Resol: {(() => {
+                              const hoursRemaining = selectedTicket.SLA.ResolutionHoursRemaining;
+                              return hoursRemaining <= 0 ? 'Vencida' : `${hoursRemaining}h`;
+                            })()}
+                          </Badge>
+                        )}
+                        {/* Mensaje si no hay badges (estado 4 o 5) */}
+                        {Number(selectedTicket.idState) >= 4 && (
+                          <span className="text-xs text-muted-foreground">SLA completado</span>
+                        )}
+                      </div>
+                    )}
 
                     <div className="rounded-xl border bg-background/80 p-4 space-y-3">
                       <p className="text-sm font-semibold flex items-center gap-2">
@@ -1054,22 +931,6 @@ export default function WorkCalendar() {
                         </p>
                       )}
                     </div>
-
-                    {canShowStateAction && (
-                      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-border/70 bg-muted/20 p-3">
-                        <Button
-                          size="sm"
-                          className="gap-2"
-                          onClick={() => openStateDialog(selectedTicket)}
-                        >
-                          <Edit3 className="w-4 h-4" />
-                          {changeStateLabel}
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          Se registrará un comentario con este cambio.
-                        </p>
-                      </div>
-                    )}
 
                     <div className="flex flex-wrap gap-2 pt-2 border-t border-dashed">
                       <Button size="sm" variant="outline" className="gap-2" onClick={handleNavigateToTicket}>

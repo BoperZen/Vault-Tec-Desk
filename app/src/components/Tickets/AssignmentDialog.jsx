@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -20,8 +19,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { X, Loader2, User, Zap } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-
 const getTechnicianInitials = (name = '') => {
   return name
     .trim()
@@ -45,6 +42,10 @@ export default function AssignmentDialog({
   const [evidence, setEvidence] = useState(null);
   const [evidencePreview, setEvidencePreview] = useState(null);
   const [evidenceError, setEvidenceError] = useState('');
+
+  // Test asignacion A1
+  // Asignacion automatica de tecnicos
+  //
 
   // Obtener la prioridad base desde el ticket (idPriority de la tabla ticket)
   const basePriority = ticket?.idPriority || 2;
@@ -155,14 +156,14 @@ export default function AssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] bg-card border-border">
         <DialogHeader>
-          <DialogTitle>Asignar Ticket</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-card-foreground">Asignar Ticket</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
             Ticket #{ticket?.idTicket}: {ticket?.Title}
           </DialogDescription>
           {hasSpecialtyRequirements && (
-            <div className="mt-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
+            <div className="mt-3 p-3 rounded-lg bg-accent/10 border border-accent/30 text-accent">
               <p className="text-xs font-medium text-muted-foreground mb-2">
                 Especialidades requeridas para esta categoría:
               </p>
@@ -176,45 +177,52 @@ export default function AssignmentDialog({
         <div className="space-y-4 py-4">
           {/* Assignment Method */}
           <div className="space-y-3">
-            <Label>Método de asignación</Label>
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  id="manual"
-                  name="assignmentMethod"
-                  value="manual"
-                  checked={assignmentMethod === 'manual'}
-                  onChange={(e) => setAssignmentMethod(e.target.value)}
-                  className="h-4 w-4 rounded-full border border-primary text-primary focus:ring-2 focus:ring-primary"
-                />
-                <Label htmlFor="manual" className="flex items-center gap-2 cursor-pointer font-normal">
-                  <User className="w-4 h-4" />
-                  <strong>Manual</strong> - Seleccionar técnico específico
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  id="automatic"
-                  name="assignmentMethod"
-                  value="automatic"
-                  checked={assignmentMethod === 'automatic'}
-                  onChange={(e) => setAssignmentMethod(e.target.value)}
-                  className="h-4 w-4 rounded-full border border-primary text-primary focus:ring-2 focus:ring-primary"
-                />
-                <Label htmlFor="automatic" className="flex items-center gap-2 cursor-pointer font-normal">
-                  <Zap className="w-4 h-4" />
-                  <strong>Automático</strong> - Asignar por disponibilidad y especialidad
-                </Label>
-              </div>
+            <Label className="text-card-foreground">Método de asignación</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className={`h-auto py-4 flex-col items-start gap-2 ${
+                  assignmentMethod === 'manual'
+                    ? 'bg-card text-accent !border !border-accent/50 hover:bg-card/80'
+                    : 'bg-muted !border !border-border hover:bg-muted/80 text-muted-foreground'
+                }`}
+                onClick={() => setAssignmentMethod('manual')}
+              >
+                <div className="flex items-center gap-2 w-full">
+                  <User className="w-5 h-5" />
+                  <span className="font-semibold">Manual</span>
+                </div>
+                <span className="text-xs font-normal opacity-80 text-left">
+                  Seleccionar técnico específico
+                </span>
+              </Button>
+              
+              <Button
+                type="button"
+                variant="outline"
+                className={`h-auto py-4 flex-col items-start gap-2 ${
+                  assignmentMethod === 'automatic'
+                    ? 'bg-card text-accent !border !border-accent/50 hover:bg-card/80'
+                    : 'bg-muted !border !border-border hover:bg-muted/80 text-muted-foreground'
+                }`}
+                onClick={() => setAssignmentMethod('automatic')}
+              >
+                <div className="flex items-center gap-2 w-full">
+                  <Zap className="w-5 h-5" />
+                  <span className="font-semibold">Automático</span>
+                </div>
+                <span className="text-xs font-normal opacity-80 text-left">
+                  Asignar por disponibilidad y especialidad
+                </span>
+              </Button>
             </div>
           </div>
           {/* Technician Selection (only for manual) */}
           {assignmentMethod === 'manual' && (
             <div className="space-y-3">
               <div className="space-y-2">
-                <Label>Seleccionar técnico</Label>
+                <Label className="text-card-foreground">Seleccionar técnico</Label>
                 <Select value={selectedTechnicianId} onValueChange={setSelectedTechnicianId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Elige un técnico..." />
@@ -272,16 +280,17 @@ export default function AssignmentDialog({
 
           {/* Observation */}
           <div className="space-y-2">
-            <Label htmlFor="observation">
-              Observación <span className="text-red-500">*</span>
+            <Label htmlFor="observation" className="text-card-foreground">
+              Observación <span className="text-destructive">*</span>
             </Label>
-            <Textarea
+            <textarea
               id="observation"
               placeholder="Describe el motivo de la asignación..."
               value={observation}
               onChange={(e) => setObservation(e.target.value)}
               rows={3}
               disabled={assignmentMethod === 'automatic'}
+              className="w-full px-3 py-2 text-base border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 placeholder:text-placeholder"
             />
             {assignmentMethod === 'automatic' && (
               <p className="text-xs text-muted-foreground">
@@ -292,14 +301,14 @@ export default function AssignmentDialog({
 
           {/* Evidence Upload */}
           <div className="space-y-2">
-            <Label>Evidencia (opcional)</Label>
+            <Label className="text-card-foreground">Evidencia (opcional)</Label>
             {!evidencePreview ? (
               <div className="space-y-2">
-                <Input
+                <input
                   type="file"
                   accept="image/*"
                   onChange={handleEvidenceChange}
-                  className="cursor-pointer"
+                  className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-md cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-accent-foreground hover:file:bg-accent/80"
                 />
                 {evidenceError && (
                   <p className="text-sm text-destructive">{evidenceError}</p>
@@ -327,7 +336,11 @@ export default function AssignmentDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <Button 
+            variant="outline" 
+            onClick={() => onOpenChange(false)} 
+            disabled={loading}
+          >
             Cancelar
           </Button>
           <Button

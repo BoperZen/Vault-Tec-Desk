@@ -610,42 +610,49 @@ export default function TicketList() {
                         <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20">
                           {ticket.Category}
                         </Badge>
-                        {ticket.SLA && (ticket.State !== 'Cerrado' && ticket.State !== 'Resuelto') && (
+                        {/* SLA Badges - Solo mostrar según el estado del ticket */}
+                        {ticket.SLA && (
                           <>
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${
-                                (() => {
+                            {/* Tiempo de Respuesta - Solo estados 1 (Pendiente) y 2 (Asignado) */}
+                            {(Number(ticket.idState) === 1 || Number(ticket.idState) === 2) && (
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${
+                                  (() => {
+                                    const hoursRemaining = ticket.SLA.ResponseHoursRemaining;
+                                    if (hoursRemaining <= 0) return 'border-destructive/50 text-destructive bg-destructive/10';
+                                    if (hoursRemaining <= 0.5) return 'border-yellow-500/50 text-yellow-600';
+                                    return 'border-green-500/50 text-green-600';
+                                  })()
+                                }`}
+                              >
+                                <Clock className="w-3 h-3 mr-1" />
+                                Resp: {(() => {
                                   const hoursRemaining = ticket.SLA.ResponseHoursRemaining;
-                                  if (hoursRemaining <= 0) return 'border-destructive/50 text-destructive bg-destructive/10';
-                                  if (hoursRemaining <= 0.5) return 'border-yellow-500/50 text-yellow-600';
-                                  return 'border-green-500/50 text-green-600';
-                                })()
-                              }`}
-                            >
-                              <Clock className="w-3 h-3 mr-1" />
-                              Resp: {(() => {
-                                const hoursRemaining = ticket.SLA.ResponseHoursRemaining;
-                                return hoursRemaining <= 0 ? 'Vencida' : `${hoursRemaining}h`;
-                              })()}
-                            </Badge>
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${
-                                (() => {
+                                  return hoursRemaining <= 0 ? 'Vencida' : `${hoursRemaining}h`;
+                                })()}
+                              </Badge>
+                            )}
+                            {/* Tiempo de Resolución - Solo estados 1, 2 y 3 (no en Resuelto ni Cerrado) */}
+                            {(Number(ticket.idState) === 1 || Number(ticket.idState) === 2 || Number(ticket.idState) === 3) && (
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${
+                                  (() => {
+                                    const hoursRemaining = ticket.SLA.ResolutionHoursRemaining;
+                                    if (hoursRemaining <= 0) return 'border-destructive/50 text-destructive bg-destructive/10';
+                                    if (hoursRemaining <= 2) return 'border-yellow-500/50 text-yellow-600';
+                                    return 'border-green-500/50 text-green-600';
+                                  })()
+                                }`}
+                              >
+                                <Clock className="w-3 h-3 mr-1" />
+                                Resol: {(() => {
                                   const hoursRemaining = ticket.SLA.ResolutionHoursRemaining;
-                                  if (hoursRemaining <= 0) return 'border-destructive/50 text-destructive bg-destructive/10';
-                                  if (hoursRemaining <= 2) return 'border-yellow-500/50 text-yellow-600';
-                                  return 'border-green-500/50 text-green-600';
-                                })()
-                              }`}
-                            >
-                              <Clock className="w-3 h-3 mr-1" />
-                              Resol: {(() => {
-                                const hoursRemaining = ticket.SLA.ResolutionHoursRemaining;
-                                return hoursRemaining <= 0 ? 'Vencida' : `${hoursRemaining}h`;
-                              })()}
-                            </Badge>
+                                  return hoursRemaining <= 0 ? 'Vencida' : `${hoursRemaining}h`;
+                                })()}
+                              </Badge>
+                            )}
                           </>
                         )}
                       </div>
@@ -852,18 +859,30 @@ export default function TicketList() {
                           </div>
                           {ticket.SLA && (
                             <>
+                              {/* Respuesta - siempre visible, con etiqueta "Respondido" si ya pasó */}
                               <div className="text-center p-2 rounded-lg bg-background/50">
-                                <p className="text-xs font-semibold text-primary mb-1">Respuesta</p>
-                                <p className="text-lg font-bold text-primary">
+                                <p className="text-xs font-semibold text-primary mb-1 flex items-center justify-center gap-1">
+                                  Respuesta
+                                  {Number(ticket.idState) >= 3 && (
+                                    <span className="text-[9px] font-normal text-primary">(Respondido)</span>
+                                  )}
+                                </p>
+                                <p className={`text-lg font-bold text-muted-foreground}`}>
                                   {formatSlaTime(ticket.SLA.ResponseDeadline)}
                                 </p>
                                 <p className="text-[10px] text-muted-foreground mt-1">
                                   {formatSlaDate(ticket.SLA.ResponseDeadline)}
                                 </p>
                               </div>
+                              {/* Resolución - siempre visible, con etiqueta "Resuelto" si ya pasó */}
                               <div className="text-center p-2 rounded-lg bg-background/50">
-                                <p className="text-xs font-semibold text-green-600 mb-1">Resolución</p>
-                                <p className="text-lg font-bold text-green-600">
+                                <p className="text-xs font-semibold text-primary mb-1 flex items-center justify-center gap-1">
+                                  Resolución
+                                  {Number(ticket.idState) >= 4 && (
+                                    <span className="text-[9px] font-normal text-primary">(Resuelto)</span>
+                                  )}
+                                </p>
+                                <p className={`text-lg font-bold text-muted-foreground}`}>
                                   {formatSlaTime(ticket.SLA.ResolutionDeadline)}
                                 </p>
                                 <p className="text-[10px] text-muted-foreground mt-1">
