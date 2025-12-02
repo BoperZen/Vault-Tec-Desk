@@ -65,6 +65,17 @@ class TicketService {
   deleteTicket(ticketId) {
     return axios.delete(`${BASE_URL}/${ticketId}`);
   }
+
+  /**
+   * Crea una valoración del servicio para un ticket cerrado
+   * POST http://localhost:81/Vault-Tec-Desk/api/servicereview
+   * @param {object} review - Objeto con los datos del review { idTicket, Score, Comment }
+   * @returns {Promise} - Promise con la respuesta de axios
+   */
+  createReview(review) {
+    const REVIEW_URL = import.meta.env.VITE_BASE_URL + 'servicereview';
+    return axios.post(REVIEW_URL, review);
+  }
 }
 
 export default new TicketService();

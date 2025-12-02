@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { CheckCircle2, XCircle, Info, AlertTriangle } from 'lucide-react';
 import { useNotification } from '@/context/NotificationContext';
+import { useSidebar } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 
 const iconMap = {
@@ -11,10 +12,10 @@ const iconMap = {
 };
 
 const colorMap = {
-  success: 'bg-emerald-500/10 border-emerald-500 text-emerald-600',
-  error: 'bg-red-50 border-red-200 text-red-900',
-  info: 'bg-blue-50 border-blue-200 text-blue-900',
-  warning: 'bg-yellow-50 border-yellow-200 text-yellow-900',
+  success: 'bg-emerald-100 border-emerald-300 text-emerald-800',
+  error: 'bg-red-100 border-red-300 text-red-800',
+  info: 'bg-blue-100 border-blue-300 text-blue-800',
+  warning: 'bg-yellow-100 border-yellow-300 text-yellow-800',
 };
 
 const iconColorMap = {
@@ -26,6 +27,7 @@ const iconColorMap = {
 
 export default function Notification() {
   const { notification, hideNotification } = useNotification();
+  const { open } = useSidebar();
 
   useEffect(() => {
     if (notification) {
@@ -42,12 +44,14 @@ export default function Notification() {
   const Icon = iconMap[notification.type] || Info;
 
   return (
-    <div className="mb-6">
+    <div 
+      className="fixed top-[100px] right-0 z-30 px-6 transition-all duration-300 pointer-events-none"
+      style={{ left: open ? '20rem' : '5rem' }}
+    >
       <div
         className={cn(
-          'flex items-center gap-3 px-6 py-6 rounded-b-xl border shadow-sm transition-all duration-300',
+          'flex items-center gap-3 px-6 py-4 rounded-b-lg border-x border-b shadow-lg transition-all duration-300 pointer-events-auto',
           'animate-in slide-in-from-top-2 fade-in',
-          'data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-top-2',
           colorMap[notification.type]
         )}
       >

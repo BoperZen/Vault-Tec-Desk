@@ -49,6 +49,7 @@ import {
 } from '@/lib/utils';
 import StateUpdateDialog from '@/components/Tickets/StateUpdateDialog';
 import AssignmentDialog from '@/components/Tickets/AssignmentDialog';
+import ServiceReviewDialog from '@/components/Tickets/ServiceReviewDialog';
 import AssignService from '@/services/AssignService';
 
 const getStateColor = (state) => {
@@ -123,6 +124,9 @@ export default function TicketList() {
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [assignDialogTicket, setAssignDialogTicket] = useState(null);
   const [isAssigning, setIsAssigning] = useState(false);
+  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
+  const [reviewDialogTicket, setReviewDialogTicket] = useState(null);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const canCreateTickets = !isLoadingRole && (role === 2 || role === 3);
   const isAdmin = role === 3;
 
@@ -404,13 +408,14 @@ export default function TicketList() {
       }
     } catch (error) {
       console.error('Error al asignar ticket:', error);
+      setIsAssignDialogOpen(false);
       showNotification('No se pudo asignar el ticket', 'error');
     } finally {
       setIsAssigning(false);
     }
   };
 
-  const handleStateUpdate = async ({ stateId, comment }) => {
+  const handleStateUpdate = async ({ stateId, comment, image }) => {
     if (!stateDialogTicket || !stateId || !comment.trim()) {
       return;
     }
@@ -429,13 +434,24 @@ export default function TicketList() {
         idUser: Number(currentUser.idUser),
       };
 
+      if (image) {
+        payload.StateImages = [image];
+      }
+
       const response = await TicketService.updateTicket(payload);
       if (response.data?.success) {
         const updatedTicket = response.data.data;
-        setTickets((prev) => prev.map((ticket) => (
-          ticket.idTicket === updatedTicket.idTicket ? updatedTicket : ticket
-        )));
-        setStateDialogTicket(updatedTicket);
+        
+        if (updatedTicket) {
+          setTickets((prev) => prev.map((ticket) => (
+            ticket.idTicket === updatedTicket.idTicket ? updatedTicket : ticket
+          )));
+          setStateDialogTicket(updatedTicket);
+        } else {
+          // Si no hay data (ej: ticket cerrado), recargar la lista
+          loadTickets();
+        }
+        
         showNotification('Estado actualizado correctamente', 'success');
         setIsStateDialogOpen(false);
       } else {
@@ -443,9 +459,53 @@ export default function TicketList() {
       }
     } catch (updateError) {
       console.error('Error al actualizar estado:', updateError);
+      setIsStateDialogOpen(false);
       showNotification('No se pudo actualizar el estado del ticket', 'error');
     } finally {
       setIsUpdatingState(false);
+    }
+  };
+
+  const openReviewDialog = (ticket) => {
+    setReviewDialogTicket(ticket);
+    setIsReviewDialogOpen(true);
+  };
+
+  const handleReviewSubmit = async ({ score, comment }) => {
+    if (!reviewDialogTicket) return;
+
+    setIsSubmittingReview(true);
+    try {
+      const payload = {
+        idTicket: reviewDialogTicket.idTicket,
+        Score: score,
+        Comment: comment,
+        DateOfReview: formatDateTimeForDB(),
+      };
+
+      const response = await TicketService.createReview(payload);
+      if (response.data?.success) {
+        const updatedTicket = response.data.data;
+        if (updatedTicket) {
+          setTickets((prev) =>
+            prev.map((ticket) =>
+              ticket.idTicket === updatedTicket.idTicket ? updatedTicket : ticket
+            )
+          );
+        } else {
+          loadTickets();
+        }
+        showNotification('Valoración enviada correctamente', 'success');
+        setIsReviewDialogOpen(false);
+      } else {
+        throw new Error('Respuesta inválida del servidor');
+      }
+    } catch (reviewError) {
+      console.error('Error al enviar valoración:', reviewError);
+      setIsReviewDialogOpen(false);
+      showNotification('No se pudo enviar la valoración', 'error');
+    } finally {
+      setIsSubmittingReview(false);
     }
   };
 
@@ -963,7 +1023,7 @@ export default function TicketList() {
                   </Card>
 
                   {/* Service Review */}
-                  {ticket.ServiceReview && (
+                  {Number(ticket.idState) === 5 && (
                     <Card className="border-border/50 bg-muted/20">
                       <CardHeader className="pb-3">
                         <h4 className="font-semibold flex items-center gap-2 text-sm">
@@ -972,23 +1032,41 @@ export default function TicketList() {
                         </h4>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            {[...Array(5)].map((_, i) => (
-                              <Star 
-                                key={i} 
-                                className={`w-5 h-5 ${i < ticket.ServiceReview.Score ? 'fill-primary text-primary' : 'text-muted-foreground'}`}
-                              />
-                            ))}
-                            <span className="text-sm font-medium ml-2">{ticket.ServiceReview.Score}/5</span>
+                        {ticket.ServiceReview ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2">
+                              {[...Array(5)].map((_, i) => (
+                                <Star 
+                                  key={i} 
+                                  className={`w-5 h-5 ${i < ticket.ServiceReview.Score ? 'fill-primary text-primary' : 'text-muted-foreground'}`}
+                                />
+                              ))}
+                              <span className="text-sm font-medium ml-2">{ticket.ServiceReview.Score}/5</span>
+                            </div>
+                            <p className="text-sm text-muted-foreground italic">
+                              "{ticket.ServiceReview.Comment}"
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatUtcToLocalDateTime(ticket.ServiceReview.DateOfReview)}
+                            </p>
                           </div>
-                          <p className="text-sm text-muted-foreground italic">
-                            "{ticket.ServiceReview.Comment}"
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatUtcToLocalDateTime(ticket.ServiceReview.DateOfReview)}
-                          </p>
-                        </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-3">
+                            {role === 2 && (
+                              <Button 
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => openReviewDialog(ticket)}
+                              >
+                                <Star className="w-4 h-4" />
+                                Valorar Servicio
+                              </Button>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              ¿Cómo fue tu experiencia con el servicio recibido?
+                            </p>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   )}
@@ -1019,6 +1097,16 @@ export default function TicketList() {
           technicians={technicians}
           onAssign={handleAssignment}
           loading={isAssigning}
+        />
+      )}
+
+      {reviewDialogTicket && (
+        <ServiceReviewDialog
+          open={isReviewDialogOpen}
+          onOpenChange={setIsReviewDialogOpen}
+          ticket={reviewDialogTicket}
+          onSubmit={handleReviewSubmit}
+          loading={isSubmittingReview}
         />
       )}
 
