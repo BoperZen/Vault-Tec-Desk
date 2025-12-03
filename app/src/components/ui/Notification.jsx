@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { CheckCircle2, XCircle, Info, AlertTriangle } from 'lucide-react';
 import { useNotification } from '@/context/NotificationContext';
 import { useSidebar } from '@/components/ui/sidebar';
+import { useFullscreen } from '@/context/FullscreenContext';
 import { cn } from '@/lib/utils';
 
 const iconMap = {
@@ -28,6 +29,7 @@ const iconColorMap = {
 export default function Notification() {
   const { notification, hideNotification } = useNotification();
   const { open } = useSidebar();
+  const { isFullscreen } = useFullscreen();
 
   useEffect(() => {
     if (notification) {
@@ -42,11 +44,15 @@ export default function Notification() {
   if (!notification) return null;
 
   const Icon = iconMap[notification.type] || Info;
+  const topOffset = isFullscreen ? 108 : 100;
 
   return (
     <div 
-      className="fixed top-[100px] right-0 z-30 px-6 transition-all duration-300 pointer-events-none"
-      style={{ left: open ? '20rem' : '5rem' }}
+      className="fixed right-0 z-30 px-6 transition-all duration-300 pointer-events-none"
+      style={{ 
+        left: open ? '20rem' : '5rem',
+        top: `${topOffset}px`
+      }}
     >
       <div
         className={cn(

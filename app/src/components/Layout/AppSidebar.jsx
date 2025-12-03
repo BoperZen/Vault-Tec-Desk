@@ -1,6 +1,8 @@
-import { Home, Ticket, Users, FolderKanban, Settings, ChevronRight, ChevronLeft, Calendar, Calendar1, Calendar1Icon, TicketCheck } from 'lucide-react';
+import { Home, Ticket, Users, FolderKanban, Settings, ChevronRight, ChevronLeft, Calendar } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useRole } from '@/hooks/use-role';
+import { useFullscreen } from '@/context/FullscreenContext';
+import { useUser } from '@/context/UserContext';
 import { cn } from '@/lib/utils';
 import {
   Sidebar,
@@ -114,6 +116,8 @@ export function AppSidebar() {
   const location = useLocation();
   const { open, toggleSidebar } = useSidebar();
   const { role, isLoadingRole } = useRole();
+  const { isFullscreen } = useFullscreen();
+  const { currentUser } = useUser();
 
   const menuItems = getMenuItems(role);
 
@@ -126,9 +130,17 @@ export function AppSidebar() {
    * Limita los resultados a los 10 tickets más recientes
    */
   return (
-    <Sidebar collapsible="icon" className="border-r border-border/50 bg-surface group/sidebar relative fixed left-0 top-0 h-screen">
+    <Sidebar collapsible="icon" className={cn(
+      "border-r border-border/50 bg-surface group/sidebar relative fixed left-0 top-0 transition-all duration-300",
+      isFullscreen ? "h-[calc(100vh-16px)] mt-2 rounded-tl-lg" : "h-screen"
+    )}>
       {/* Logo Container - Se muestra cuando el sidebar está abierto */}
-      <div className="h-[100px] border-b border-border/50 flex items-center justify-center px-4 overflow-hidden">
+      <div 
+        className={cn(
+          "border-b border-border/50 flex items-center justify-center px-4 overflow-hidden transition-all duration-300",
+          isFullscreen ? "h-[100px] pt-2" : "h-[100px]"
+        )}
+      >
         <Link 
           to="/" 
           className={cn(
@@ -163,7 +175,7 @@ export function AppSidebar() {
         </Tooltip>
       </TooltipProvider>
 
-      <SidebarContent className="px-3 py-1">
+      <SidebarContent className="px-3 py-1 flex flex-col">
         {/* Main Navigation */}
         <SidebarGroup className="group-data-[collapsible=icon]:items-center pl-3">
           <SidebarGroupLabel className="px-3 mb-3 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
@@ -228,6 +240,31 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* User Card at Bottom */}
+        <div className={cn(
+          "border-t border-border/50 p-3 transition-all duration-500 ease-in-out",
+          open ? "" : "flex justify-center"
+        )}>
+          <div className={cn(
+            "flex items-center gap-3 rounded-lg p-2 hover:bg-muted/50 transition-all duration-300 cursor-pointer",
+            !open && "justify-center p-2"
+          )}>
+            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 flex items-center justify-center text-black font-bold text-sm flex-shrink-0 shadow-md">
+              {currentUser?.username?.substring(0, 2).toUpperCase() || 'VT'}
+            </div>
+            <div className={cn(
+              "flex-1 min-w-0 transition-all duration-500 ease-in-out overflow-hidden",
+              open ? "opacity-100 max-w-[200px]" : "opacity-0 max-w-0"
+            )}>
+              <p className="text-sm font-medium truncate">{currentUser?.username || 'Usuario'}</p>
+              <p className="text-xs text-muted-foreground truncate">{currentUser?.roleName || 'Vault Dweller'}</p>
+            </div>
+          </div>
+        </div>
       </SidebarContent>
     </Sidebar>
   );

@@ -13,9 +13,10 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
-  Filter,
   Plus,
   Edit3,
+  Search,
+  X,
 } from 'lucide-react';
 import { useRole } from '@/hooks/use-role';
 import { useUser } from '@/context/UserContext';
@@ -26,17 +27,10 @@ import TechnicianService from '@/services/TechnicianService';
 import StateService from '@/services/StateService';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { StateProgress } from '@/components/ui/state-progress';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Collapsible,
   CollapsibleContent,
@@ -113,8 +107,7 @@ export default function TicketList() {
   const [error, setError] = useState(null);
   const [expandedTicket, setExpandedTicket] = useState(null);
   const [technicians, setTechnicians] = useState([]);
-  const [filterType, setFilterType] = useState('all'); // 'all' o 'assigned'
-  const [selectedTechnician, setSelectedTechnician] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [imageModal, setImageModal] = useState({ open: false, url: '' });
   const [states, setStates] = useState([]);
   const [isStateDialogOpen, setIsStateDialogOpen] = useState(false);
@@ -149,8 +142,6 @@ export default function TicketList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     location.pathname,
-    filterType,
-    selectedTechnician,
     role,
     isLoadingRole,
     technicianId,
@@ -222,7 +213,7 @@ export default function TicketList() {
 
   /**
    * Carga los tickets desde la API y aplica filtros según el rol del usuario
-   * - Admin: Aplica filtros de tipo (asignados/todos) y técnico específico
+   * - Admin: Ve todos los tickets
    * - Técnico: Solo muestra sus tickets asignados
    * - Cliente: Solo muestra sus propios tickets
    */
@@ -263,37 +254,8 @@ export default function TicketList() {
             allTickets = allTickets.filter(
             ticket => Number(ticket.User?.idUser) === clientId
           );
-        } else if (role === 3) {
-          // Admin: Aplicar filtros
-          
-          // Filtro por tipo (asignado o todos)
-          if (filterType === 'assigned') {
-            allTickets = allTickets.filter(ticket => {
-              try {
-                return ticket.Assign && 
-                       ticket.Assign.Technician && 
-                       ticket.Assign.Technician.idTechnician;
-              } catch (error) {
-                console.error('Error filtrando ticket asignado:', ticket.idTicket, error);
-                return false;
-              }
-            });
-          }
-          
-          // Filtro por técnico específico
-          if (selectedTechnician !== 'all') {
-            const techId = parseInt(selectedTechnician);
-            allTickets = allTickets.filter(ticket => {
-              try {
-                const ticketTechId = parseInt(ticket.Assign?.Technician?.idTechnician);
-                return !isNaN(ticketTechId) && ticketTechId === techId;
-              } catch (error) {
-                console.error('Error filtrando por técnico:', ticket.idTicket, error);
-                return false;
-              }
-            });
-          }
         }
+        // Admin (role === 3): Ve todos los tickets sin filtro adicional
         
         setTickets(allTickets);
         
@@ -352,6 +314,45 @@ export default function TicketList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [stateDialogTicket, states, role]
   );
+
+  // Búsqueda avanzada con filtrado inteligente
+  const filteredTickets = useMemo(() => {
+    if (!searchQuery.trim()) return tickets;
+
+    const query = searchQuery.toLowerCase().trim();
+    
+    // Detectar si busca por ID (#123 o solo 123)
+    const idMatch = query.match(/^#?(\d+)$/);
+    if (idMatch) {
+      const searchId = parseInt(idMatch[1]);
+      return tickets.filter(ticket => ticket.idTicket === searchId);
+    }
+
+    return tickets.filter(ticket => {
+      // Buscar en título
+      if (ticket.Title?.toLowerCase().includes(query)) return true;
+      
+      // Buscar en descripción
+      if (ticket.Description?.toLowerCase().includes(query)) return true;
+      
+      // Buscar en estado
+      if (ticket.State?.toLowerCase().includes(query)) return true;
+      
+      // Buscar en categoría
+      if (ticket.Category?.toLowerCase().includes(query)) return true;
+      
+      // Buscar en nombre de usuario/cliente
+      if (ticket.User?.Username?.toLowerCase().includes(query)) return true;
+      
+      // Buscar en nombre de técnico asignado
+      if (ticket.Assign?.Technician?.Username?.toLowerCase().includes(query)) return true;
+      
+      // Buscar en email del técnico
+      if (ticket.Assign?.Technician?.Email?.toLowerCase().includes(query)) return true;
+
+      return false;
+    });
+  }, [tickets, searchQuery]);
 
   const openStateDialog = (ticket) => {
     const allowedStates = getAllowedStatesForTicket(ticket);
@@ -564,83 +565,101 @@ export default function TicketList() {
   return (
     <div className="space-y-6 container mx-auto px-4">
       {/* Header */}
-      <div className="flex items-center justify-between mt-4 flex-wrap gap-4">
+      <div className="flex flex-col gap-4 mt-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
             {role === 1 
               ? 'Mis Tickets Asignados' 
-              : role === 3 && filterType === 'assigned'
-              ? 'Tickets Asignados'
               : 'Todos los Tickets'}
           </h1>
           <p className="text-muted-foreground mt-1">
             {role === 1 
               ? 'Tickets asignados a ti' 
-              : role === 3 && filterType === 'assigned'
-              ? 'Tickets asignados a técnicos'
               : 'Gestiona y visualiza todos los tickets del sistema'}
           </p>
         </div>
-        
-        <div className="flex items-center gap-3">
-          {/* Botón Crear Ticket */}
-          {canCreateTickets && (
-            <Button
-              onClick={() => navigate('/tickets/create')}
-              className="gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Nuevo Ticket
-            </Button>
-          )}
-          {/* Filtros (solo para admin) */}
-          {role === 3 && (
-            <>
-              <Filter className="w-4 h-4 text-muted-foreground" />
-              
-              {/* Filtro de tipo */}
-              <Select 
-                value={filterType} 
-                onValueChange={setFilterType}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los Tickets</SelectItem>
-                  <SelectItem value="assigned">Tickets Asignados</SelectItem>
-                </SelectContent>
-              </Select>
 
-              {/* Filtro de técnico */}
-              <Select 
-                value={selectedTechnician} 
-                onValueChange={setSelectedTechnician}
+        {/* Barra de búsqueda y botón crear */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Búsqueda avanzada */}
+          <div className="relative flex-1 min-w-[280px] max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Buscar por #ID, título, cliente, técnico, estado..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-9"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Seleccionar técnico" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los técnicos</SelectItem>
-                  {technicians.map((tech) => (
-                    <SelectItem key={tech.idTechnician} value={tech.idTechnician.toString()}>
-                      {tech.Username}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </>
-          )}
-          
-          <Badge variant="outline" className="text-sm px-4 py-2">
-            {tickets.length} tickets
-          </Badge>
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Spacer para empujar a la derecha */}
+          <div className="flex-1" />
+
+          {/* Botón Crear Ticket y contador */}
+          <div className="flex items-center gap-3">
+            {canCreateTickets && (
+              <Button
+                onClick={() => navigate('/tickets/create')}
+                className="gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Nuevo Ticket
+              </Button>
+            )}
+            
+            <Badge variant="outline" className="text-sm px-4 py-2">
+              {tickets.length === 1 ? '1 Ticket en total' : `${tickets.length} Tickets en total`}
+            </Badge>
+          </div>
         </div>
+
+        {/* Indicador de búsqueda activa */}
+        {/* {searchQuery && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Resultados para:</span>
+            <Badge variant="secondary" className="gap-1">
+              "{searchQuery}"
+              <button onClick={() => setSearchQuery('')} className="ml-1 hover:text-foreground">
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+            {filteredTickets.length === 0 && (
+              <span className="text-destructive">— Sin resultados</span>
+            )}
+          </div>
+        )} */}
       </div>
 
       {/* Tickets List with Collapsible */}
       <div className="space-y-4 mb-5">
-        {tickets.map((ticket) => {
+        {filteredTickets.length === 0 && !loading && (
+          <Card className="p-8">
+            <div className="text-center space-y-3">
+              <Search className="w-12 h-12 text-muted-foreground mx-auto" />
+              <h3 className="text-lg font-semibold">No se encontraron tickets</h3>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                {searchQuery 
+                  ? `No hay tickets que coincidan con "${searchQuery}". Intenta con otros términos.`
+                  : 'No hay tickets disponibles con los filtros actuales.'}
+              </p>
+              {searchQuery && (
+                <Button variant="outline" size="sm" onClick={() => setSearchQuery('')}>
+                  Limpiar búsqueda
+                </Button>
+              )}
+            </div>
+          </Card>
+        )}
+        {filteredTickets.map((ticket) => {
           const isOpen = expandedTicket === ticket.idTicket;
           return (
             <Collapsible
@@ -752,7 +771,7 @@ export default function TicketList() {
 
               <CollapsibleContent>
                 <CardContent className="pt-0 space-y-6">
-                  <Separator />
+                  <div className="border-t border-border" />
 
                   {/* Admin: Assign button for pending tickets */}
                   {isAdmin && Number(ticket.idState) === 1 && !ticket.Assign && (
@@ -914,7 +933,7 @@ export default function TicketList() {
                       <CardContent>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="text-center p-2 rounded-lg bg-background/50">
-                            <p className="text-xl font-bold text-primary">{ticket.StateRecords?.length || 0}</p>
+                            <p className="text-xl font-bold text-primary pt-2">{ticket.StateRecords?.length || 0}</p>
                             <p className="text-[10px] text-muted-foreground">Cambios</p>
                           </div>
                           {ticket.SLA && (
