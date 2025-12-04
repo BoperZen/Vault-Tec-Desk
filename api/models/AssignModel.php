@@ -154,6 +154,14 @@ class AssignModel
             throw new Exception('El usuario que realiza la asignación es requerido');
         }
 
+        // Verificar la carga actual del técnico (máximo 5 tickets activos)
+        $technicianM = new TechnicianModel();
+        $techData = $technicianM->Simple($idTechnician);
+        
+        if ($techData && (int)$techData->WorkLoad >= 5) {
+            throw new Exception('El técnico ya tiene la carga máxima de 5 tickets activos');
+        }
+
         $priorityScore = isset($data->PriorityScore) ? (int)$data->PriorityScore : null;
         $workflowRules = isset($data->idWorkFlowRules) ? (int)$data->idWorkFlowRules : null;
         
@@ -162,13 +170,17 @@ class AssignModel
             ? "'{$this->enlace->escapeString($data->DateOfAssign)}'"
             : "NOW()";
 
-        $existing = $this->enlace->ExecuteSQL("SELECT idAssign FROM assign WHERE idTicket = $idTicket LIMIT 1");
+        $existing = $this->enlace->ExecuteSQL("SELECT idAssign, idTechnician FROM assign WHERE idTicket = $idTicket LIMIT 1");
 
         $priorityValue = $priorityScore !== null ? $priorityScore : 'NULL';
         $workflowValue = $workflowRules !== null ? $workflowRules : 'NULL';
 
+        $oldTechnicianId = null;
+
         if (!empty($existing) && is_array($existing)) {
             $idAssign = (int)$existing[0]->idAssign;
+            $oldTechnicianId = isset($existing[0]->idTechnician) ? (int)$existing[0]->idTechnician : null;
+            
             $updateSql = "UPDATE assign SET ".
                 "idTechnician = $idTechnician, ".
                 "PriorityScore = $priorityValue, ".
@@ -176,10 +188,19 @@ class AssignModel
                 "DateOfAssign = $dateOfAssign " .
                 "WHERE idAssign = $idAssign";
             $this->enlace->ExecuteSQL_DML($updateSql);
+
+            // Si cambió el técnico, decrementar carga del antiguo e incrementar del nuevo
+            if ($oldTechnicianId && $oldTechnicianId !== $idTechnician) {
+                $technicianM->decrementWorkload($oldTechnicianId);
+                $technicianM->incrementWorkload($idTechnician);
+            }
         } else {
             $insertSql = "INSERT INTO assign (idTicket, idTechnician, PriorityScore, idWorkFlowRules, DateOfAssign) VALUES (" .
                 "$idTicket, $idTechnician, $priorityValue, $workflowValue, $dateOfAssign)";
             $this->enlace->executeSQL_DML_last($insertSql);
+
+            // Incrementar la carga del técnico asignado
+            $technicianM->incrementWorkload($idTechnician);
         }
 
         $ticketM = new TicketModel();

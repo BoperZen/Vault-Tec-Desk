@@ -455,6 +455,12 @@ class TicketModel
                         $imageM->create($imageData);
                     }
                 }
+
+                // Si el ticket pasa a estado 4 (Resuelto), decrementar la carga del técnico asignado
+                if ($newState === 4 && isset($oldTicket->Assign) && isset($oldTicket->Assign->idTechnician)) {
+                    $technicianM = new TechnicianModel();
+                    $technicianM->decrementWorkload((int)$oldTicket->Assign->idTechnician);
+                }
             }
 
             $updates[] = "idState = $newState";

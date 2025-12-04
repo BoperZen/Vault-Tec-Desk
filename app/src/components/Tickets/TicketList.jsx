@@ -402,6 +402,19 @@ export default function TicketList() {
             ticket.idTicket === updatedTicket.idTicket ? updatedTicket : ticket
           )
         );
+        
+        // Recargar técnicos para actualizar el workload en tiempo real
+        if (role === 3) {
+          try {
+            const techResponse = await TechnicianService.getTechnicians();
+            if (techResponse.data?.success) {
+              setTechnicians(techResponse.data.data);
+            }
+          } catch (techError) {
+            console.error('Error al recargar técnicos:', techError);
+          }
+        }
+        
         showNotification('Ticket asignado exitosamente', 'success');
         setIsAssignDialogOpen(false);
       } else {

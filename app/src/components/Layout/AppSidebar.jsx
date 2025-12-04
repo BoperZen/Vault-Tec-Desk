@@ -1,4 +1,4 @@
-import { Home, Ticket, Users, FolderKanban, Settings, ChevronRight, ChevronLeft, Calendar } from 'lucide-react';
+import { Home, Ticket, Users, FolderKanban, Settings, ChevronRight, ChevronLeft, Calendar, User } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useRole } from '@/hooks/use-role';
 import { useFullscreen } from '@/context/FullscreenContext';
@@ -245,24 +245,18 @@ export function AppSidebar() {
         <div className="flex-1" />
 
         {/* User Card at Bottom */}
-        <div className={cn(
-          "border-t border-border/50 p-3 transition-all duration-500 ease-in-out",
-          open ? "" : "flex justify-center"
-        )}>
+        <div className="border-t border-border/50 h-[36px] flex items-center px-4 transition-all duration-500 ease-in-out">
           <div className={cn(
-            "flex items-center gap-3 rounded-lg p-2 hover:bg-muted/50 transition-all duration-300 cursor-pointer",
-            !open && "justify-center p-2"
+            "flex items-center rounded-md hover:bg-muted/50 transition-all duration-300 cursor-pointer",
+            open ? "gap-2.5 px-1" : "justify-center w-full"
           )}>
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 flex items-center justify-center text-black font-bold text-sm flex-shrink-0 shadow-md">
-              {currentUser?.username?.substring(0, 2).toUpperCase() || 'VT'}
-            </div>
-            <div className={cn(
-              "flex-1 min-w-0 transition-all duration-500 ease-in-out overflow-hidden",
-              open ? "opacity-100 max-w-[200px]" : "opacity-0 max-w-0"
+            <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <span className={cn(
+              "text-xs font-medium truncate transition-all duration-300 ease-in-out whitespace-nowrap",
+              open ? "opacity-100 max-w-[180px]" : "opacity-0 max-w-0 overflow-hidden"
             )}>
-              <p className="text-sm font-medium truncate">{currentUser?.username || 'Usuario'}</p>
-              <p className="text-xs text-muted-foreground truncate">{currentUser?.roleName || 'Vault Dweller'}</p>
-            </div>
+              {currentUser?.username || 'Usuario'}
+            </span>
           </div>
         </div>
       </SidebarContent>

@@ -130,9 +130,10 @@ export default function AssignmentDialog({
   const requiredSpecialtyIds = ticket?.CategoryData?.SpecialtyIds || [];
   const hasSpecialtyRequirements = Array.isArray(requiredSpecialtyIds) && requiredSpecialtyIds.length > 0;
 
+  // Filtrar técnicos disponibles: WorkLoad < 5 (máximo 5 tickets)
   const availableTechnicians = technicians.filter((tech) => {
-    const availability = parseInt(tech.Availability || 0);
-    if (availability < 2) return false;
+    const workload = parseInt(tech.WorkLoad || 0);
+    if (workload >= 5) return false; // No disponible si tiene carga máxima
 
     // If category has specialty requirements, filter by those
     if (hasSpecialtyRequirements) {
@@ -248,7 +249,7 @@ export default function AssignmentDialog({
                             </Avatar>
                             <span>{tech.Username}</span>
                             <Badge variant="outline" className="ml-auto text-xs">
-                              Carga: {tech.WorkLoad || 0}/10
+                              Carga: {tech.WorkLoad || 0}/5
                             </Badge>
                           </div>
                         </SelectItem>

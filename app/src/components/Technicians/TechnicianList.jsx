@@ -30,28 +30,46 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 
-const getAvailabilityColor = (availability) => {
-  if (availability >= 4) return 'bg-green-500/10 text-green-600 border-green-500/20';
-  if (availability >= 2) return 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20';
+// Funciones para determinar estado basado en WorkLoad (0-5)
+const getWorkloadStatusColor = (workload) => {
+  if (workload === 0) return 'bg-green-500/10 text-green-600 border-green-500/20';
+  if (workload <= 2) return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+  if (workload <= 4) return 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20';
   return 'bg-red-500/10 text-red-600 border-red-500/20';
 };
 
-const getAvailabilityIcon = (availability) => {
-  if (availability >= 4) return { icon: CheckCircle2, color: 'text-green-500 bg-green-500/10' };
-  if (availability >= 2) return { icon: Clock, color: 'text-yellow-500 bg-yellow-500/10' };
+const getWorkloadStatusIcon = (workload) => {
+  if (workload === 0) return { icon: CheckCircle2, color: 'text-green-500 bg-green-500/10' };
+  if (workload <= 2) return { icon: CheckCircle2, color: 'text-blue-500 bg-blue-500/10' };
+  if (workload <= 4) return { icon: Clock, color: 'text-yellow-500 bg-yellow-500/10' };
   return { icon: AlertCircle, color: 'text-red-500 bg-red-500/10' };
 };
 
-const getAvailabilityText = (availability) => {
-  if (availability >= 4) return 'Disponible';
-  if (availability >= 2) return 'Ocupado';
+const getWorkloadStatusText = (workload) => {
+  if (workload === 0) return 'Disponible';
+  if (workload <= 2) return 'Carga baja';
+  if (workload <= 4) return 'Ocupado';
   return 'No Disponible';
 };
 
 const getWorkloadColor = (workload) => {
-  if (workload <= 3) return 'text-green-600';
-  if (workload <= 6) return 'text-yellow-600';
+  if (workload <= 2) return 'text-muted-foreground';
+  if (workload <= 3) return 'text-muted-foreground';
   return 'text-red-600';
+};
+
+const getWorkloadBgColor = (workload) => {
+  if (workload <= 2) return 'text-muted-foreground';
+  if (workload <= 3) return 'text-muted-foreground';
+  return 'bg-red-500';
+};
+
+const getWorkloadLabel = (workload) => {
+  if (workload === 0) return 'Sin carga';
+  if (workload <= 2) return 'Carga baja';
+  if (workload <= 3) return 'Carga media';
+  if (workload <= 4) return 'Carga alta';
+  return 'Carga máxima';
 };
 
 export default function TechnicianList() {
@@ -207,12 +225,12 @@ export default function TechnicianList() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-green-500" />
-              Disponibles
+              Sin Carga
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-green-600">
-              {technicians.filter(t => parseInt(t.Availability) >= 4).length}
+              {technicians.filter(t => parseInt(t.WorkLoad || 0) === 0).length}
             </p>
           </CardContent>
         </Card>
@@ -221,12 +239,15 @@ export default function TechnicianList() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Clock className="w-4 h-4 text-yellow-500" />
-              Ocupados
+              Carga Media
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-yellow-600">
-              {technicians.filter(t => parseInt(t.Availability) >= 2 && parseInt(t.Availability) < 4).length}
+              {technicians.filter(t => {
+                const wl = parseInt(t.WorkLoad || 0);
+                return wl >= 1 && wl <= 3;
+              }).length}
             </p>
           </CardContent>
         </Card>
@@ -235,12 +256,12 @@ export default function TechnicianList() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-red-500" />
-              No Disponibles
+              Carga Máxima
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-red-600">
-              {technicians.filter(t => parseInt(t.Availability) < 2).length}
+              {technicians.filter(t => parseInt(t.WorkLoad || 0) >= 4).length}
             </p>
           </CardContent>
         </Card>
@@ -257,6 +278,7 @@ export default function TechnicianList() {
               {technicians.length > 0 
                 ? (technicians.reduce((acc, t) => acc + parseInt(t.WorkLoad || 0), 0) / technicians.length).toFixed(1)
                 : 0}
+              <span className="text-sm font-normal text-muted-foreground">/5</span>
             </p>
           </CardContent>
         </Card>
@@ -265,13 +287,13 @@ export default function TechnicianList() {
       {/* Technicians Grid with Collapsible */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {technicians.map((tech) => {
-          const availability = parseInt(tech.Availability);
           const workload = parseInt(tech.WorkLoad || 0);
-          const AvailabilityIcon = getAvailabilityIcon(availability).icon;
-          const iconColor = getAvailabilityIcon(availability).color;
-          const workloadPercent = (workload / 10) * 100;
+          const WorkloadIcon = getWorkloadStatusIcon(workload).icon;
+          const iconColor = getWorkloadStatusIcon(workload).color;
+          const workloadPercent = (workload / 5) * 100;
 
           const stats = ticketStats[tech.idTechnician] || { assigned: 0, resolved: 0, inProgress: 0 };
+          const totalTickets = stats.assigned;
 
           return (
             <Collapsible
@@ -292,9 +314,9 @@ export default function TechnicianList() {
                             {tech.Username.substring(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        {/* Status indicator */}
+                        {/* Status indicator based on workload */}
                         <div className={`absolute -bottom-1 -right-1 p-1 rounded-full ${iconColor} border-2 border-background`}>
-                          <AvailabilityIcon className="w-3 h-3" />
+                          <WorkloadIcon className="w-3 h-3" />
                         </div>
                       </div>
 
@@ -315,8 +337,8 @@ export default function TechnicianList() {
                         </div>
 
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge className={getAvailabilityColor(availability)}>
-                            {getAvailabilityText(availability)}
+                          <Badge className={getWorkloadStatusColor(workload)}>
+                            {getWorkloadStatusText(workload)}
                           </Badge>
                           <Badge variant="outline" className="font-mono text-xs">
                             #{tech.idTechnician}
@@ -328,13 +350,13 @@ export default function TechnicianList() {
                           <div className="flex items-center justify-between text-xs">
                             <span className="text-muted-foreground">Carga de trabajo</span>
                             <span className={`font-semibold ${getWorkloadColor(workload)}`}>
-                              {workload}/10
+                              {workload}/5 · {getWorkloadLabel(workload)}
                             </span>
                           </div>
                           <Progress 
                             value={workloadPercent} 
                             className="h-2"
-                            indicatorClassName={workload <= 3 ? 'bg-green-500' : workload <= 6 ? 'bg-yellow-500' : 'bg-red-500'}
+                            indicatorClassName={getWorkloadBgColor(workload)}
                           />
                         </div>
                       </div>
@@ -407,8 +429,8 @@ export default function TechnicianList() {
                       <CardContent>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="text-center p-2 rounded-lg bg-background/50">
-                            <p className="text-xl font-bold text-primary">{stats.assigned}</p>
-                            <p className="text-[10px] text-muted-foreground">Asignados</p>
+                            <p className="text-xl font-bold text-primary">{totalTickets}</p>
+                            <p className="text-[10px] text-muted-foreground">Total Tickets</p>
                           </div>
                           <div className="text-center p-2 rounded-lg bg-background/50">
                             <p className="text-xl font-bold text-green-600">{stats.resolved}</p>

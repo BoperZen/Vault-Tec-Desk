@@ -209,7 +209,7 @@ export default function Dashboard() {
     <div className="w-full border-t-2 border-border/50 my-8"></div>
 
     {/* Dashboard Stats Section - Full width */}
-    <div className="px-8 pb-12">
+    <div className="px-8 pb-2">
       <div className="container max-w-7xl mx-auto">
         <h2 className="text-2xl font-bold mb-6 text-center">Estadísticas del Sistema</h2>
         

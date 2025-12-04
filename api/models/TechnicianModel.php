@@ -47,6 +47,13 @@ class TechnicianModel
         if (!empty($vResultado) && is_array($vResultado)) {
             $vResultado = $vResultado[0];
             
+            // Normalizar WorkLoad (la BD tiene 'Workload', el frontend espera 'WorkLoad')
+            if (isset($vResultado->Workload)) {
+                $vResultado->WorkLoad = $vResultado->Workload;
+            } else {
+                $vResultado->WorkLoad = 0;
+            }
+            
             // Agregar información del usuario
             if (isset($vResultado->idUser) && $vResultado->idUser) {
                 $user = $userM->get($vResultado->idUser);
@@ -75,15 +82,15 @@ class TechnicianModel
     }
 
     /**
-     * Obtener información simple del técnico (solo WorkLoad y Availability)
+     * Obtener información simple del técnico (solo WorkLoad)
      * @param int $idTechnician - ID del técnico
-     * @return object|null - Objeto con WorkLoad y Availability
+     * @return object|null - Objeto con WorkLoad
      */
     public function Simple($idTechnician)
     {
         $idTechnician = (int) $idTechnician;
 
-        $vSql = "SELECT WorkLoad, Availability FROM technician WHERE idTechnician = $idTechnician";
+        $vSql = "SELECT WorkLoad FROM technician WHERE idTechnician = $idTechnician";
 
         $vResultado = $this->enlace->ExecuteSQL($vSql);
 
@@ -92,6 +99,73 @@ class TechnicianModel
         }
 
         return null;
+    }
+
+    /**
+     * Recalcular y actualizar el WorkLoad de un técnico basado en tickets activos
+     * Tickets activos = estados 1 (Pendiente), 2 (Asignado), 3 (En Proceso)
+     * Máximo de carga = 5
+     * @param int $idTechnician - ID del técnico
+     * @return int - Nuevo valor de WorkLoad
+     */
+    public function recalculateWorkload($idTechnician)
+    {
+        $idTechnician = (int) $idTechnician;
+
+        // Contar tickets activos asignados al técnico (estados 1, 2, 3)
+        $vSql = "SELECT COUNT(*) as activeTickets 
+                 FROM assign a
+                 INNER JOIN Ticket t ON t.idTicket = a.idTicket
+                 WHERE a.idTechnician = $idTechnician 
+                 AND t.idState IN (1, 2, 3)";
+        
+        $result = $this->enlace->ExecuteSQL($vSql);
+        $workload = 0;
+        
+        if (!empty($result) && is_array($result)) {
+            $workload = (int) $result[0]->activeTickets;
+        }
+
+        // Limitar a máximo 5
+        $workload = min($workload, 5);
+
+        // Actualizar el WorkLoad en la tabla technician
+        $vSqlUpdate = "UPDATE technician SET WorkLoad = $workload WHERE idTechnician = $idTechnician";
+        $this->enlace->ExecuteSQL_DML($vSqlUpdate);
+
+        return $workload;
+    }
+
+    /**
+     * Incrementar el WorkLoad de un técnico en 1 (máximo 5)
+     * @param int $idTechnician - ID del técnico
+     * @return bool - true si se actualizó correctamente
+     */
+    public function incrementWorkload($idTechnician)
+    {
+        $idTechnician = (int) $idTechnician;
+
+        // Incrementar solo si es menor a 5
+        $vSql = "UPDATE technician SET WorkLoad = LEAST(WorkLoad + 1, 5) WHERE idTechnician = $idTechnician";
+        $this->enlace->ExecuteSQL_DML($vSql);
+
+        return true;
+    }
+
+    /**
+     * Decrementar el WorkLoad de un técnico en 1 (mínimo 0)
+     * @param int $idTechnician - ID del técnico
+     * @return bool - true si se actualizó correctamente
+     */
+    public function decrementWorkload($idTechnician)
+    {
+        $idTechnician = (int) $idTechnician;
+
+        // Decrementar solo si es mayor a 0
+        $vSql = "UPDATE technician SET WorkLoad = GREATEST(WorkLoad - 1, 0) WHERE idTechnician = $idTechnician";
+        $this->enlace->ExecuteSQL_DML($vSql);
+
+        return true;
     }
 
     /**
@@ -230,8 +304,8 @@ class TechnicianModel
             $idUser = $this->enlace->executeSQL_DML_last($vSqlUser);
 
             // Crear técnico con valores por defecto
-            $vSql = "INSERT INTO technician (idUser, WorkLoad, Availability, AvatarStyle, AvatarSeed) 
-                     VALUES ($idUser, 0, 5, '$avatarStyle', '$avatarSeed')";
+            $vSql = "INSERT INTO technician (idUser, WorkLoad, AvatarStyle, AvatarSeed) 
+                     VALUES ($idUser, 0, '$avatarStyle', '$avatarSeed')";
             
             $idTechnician = $this->enlace->executeSQL_DML_last($vSql);
 

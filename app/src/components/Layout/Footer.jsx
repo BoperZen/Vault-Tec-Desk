@@ -7,9 +7,9 @@ export function Footer() {
   return (
     <footer 
       className="fixed bottom-0 right-0 z-30 border-t border-border/30 bg-background/80 backdrop-blur-sm transition-all duration-500 ease-in-out"
-      style={{ left: open ? '20rem' : '5rem' }}
+      style={{ left: open ? '20rem' : '5rem', height: '40px' }}
     >
-      <div className="flex items-center justify-between px-6 py-2">
+      <div className="flex items-center justify-between h-full px-6">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="hidden sm:inline">Vault-Tec Industries</span>
           <span className="text-border">•</span>
@@ -20,7 +20,7 @@ export function Footer() {
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="hidden md:inline">Hecho con</span>
             <Heart className="h-3 w-3 text-red-500 fill-red-500 animate-pulse" />
-            <span className="hidden md:inline">para residentes del Vault</span>
+            <span className="hidden md:inline">para clientes del Vault</span>
           </div>
           
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20">
