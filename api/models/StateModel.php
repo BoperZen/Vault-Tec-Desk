@@ -29,7 +29,7 @@ class StateModel
         //Ejecutar la consulta
         $vResultado = $this->enlace->ExecuteSQL($vSql);
         
-        // Retornar el objeto
-        return $vResultado[0];
+        // Retornar el objeto o null si no existe
+        return !empty($vResultado) ? $vResultado[0] : null;
     }
 }

@@ -1,8 +1,10 @@
-import { Home, Ticket, Users, FolderKanban, Settings, ChevronRight, ChevronLeft, Calendar, User } from 'lucide-react';
+import { Home, Ticket, Users, FolderKanban, Settings, ChevronRight, ChevronLeft, Calendar, User, Bell } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useRole } from '@/hooks/use-role';
 import { useFullscreen } from '@/context/FullscreenContext';
 import { useUser } from '@/context/UserContext';
+import { useSystemNotifications } from '@/context/SystemNotificationContext';
 import { cn } from '@/lib/utils';
 import {
   Sidebar,
@@ -17,6 +19,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Tooltip,
   TooltipContent,
@@ -27,14 +30,15 @@ import {
 /**
  * Obtiene los items del menú según el rol del usuario
  * @param {number} role - Rol del usuario (1: Técnico, 2: Cliente, 3: Admin)
+ * @param {function} t - Función de traducción
  * @returns {Array} - Array de items del menú con sus propiedades
  */
-const getMenuItems = (role) => {
+const getMenuItems = (role, t) => {
   const dashboardItem = {
-    title: 'Dashboard',
+    title: t('navigation.dashboard'),
     icon: Home,
     url: '/',
-    description: 'Vista general del sistema',
+    description: t('sidebar.descriptions.dashboard'),
   };
 
   // Para técnicos (rol 1): Solo sus tickets asignados
@@ -42,16 +46,22 @@ const getMenuItems = (role) => {
     return [
       dashboardItem,
       {
-        title: 'Tickets',
+        title: t('navigation.tickets'),
         icon: Ticket,
         url: '/tickets',
-        description: 'Mis tickets asignados',
+        description: t('sidebar.descriptions.assignedTickets'),
       },
       {
-        title: 'Calendario',
+        title: t('navigation.calendar'),
         icon: Calendar,
         url: '/calendar',
-        description: 'Tu calendario de trabajo',
+        description: t('sidebar.descriptions.calendarWork'),
+      },
+      {
+        title: t('navigation.notifications'),
+        icon: Bell,
+        url: '/notifications',
+        description: t('sidebar.descriptions.myNotifications'),
       },
     ];
   }
@@ -61,28 +71,34 @@ const getMenuItems = (role) => {
     return [
       dashboardItem,
       {
-        title: 'Tickets',
+        title: t('navigation.tickets'),
         icon: Ticket,
         url: '/tickets',
-        description: 'Gestión de tickets',
+        description: t('sidebar.descriptions.tickets'),
       },
       {
-        title: 'Técnicos',
+        title: t('navigation.technicians'),
         icon: Users,
         url: '/technicians',
-        description: 'Personal técnico',
+        description: t('sidebar.descriptions.technicians'),
       },
       {
-        title: 'Calendario',
+        title: t('navigation.calendar'),
         icon: Calendar,
         url: '/calendar',
-        description: 'Calendario completo',
+        description: t('sidebar.descriptions.calendar'),
       },
       {
-        title: 'Categorías',
+        title: t('navigation.categories'),
         icon: FolderKanban,
         url: '/categories',
-        description: 'Categorías y etiquetas',
+        description: t('sidebar.descriptions.categories'),
+      },
+      {
+        title: t('navigation.notifications'),
+        icon: Bell,
+        url: '/notifications',
+        description: t('sidebar.descriptions.notifications'),
       },
     ];
   }
@@ -91,35 +107,44 @@ const getMenuItems = (role) => {
   return [
     dashboardItem,
     {
-      title: 'Mis Tickets',
+      title: t('navigation.myTickets'),
       icon: Ticket,
       url: '/tickets',
-      description: 'Mis tickets',
+      description: t('sidebar.descriptions.myTickets'),
     },
     {
-      title: 'Calendario',
+      title: t('navigation.calendar'),
       icon: Calendar,
       url: '/calendar',
-      description: 'Mi calendario semanal',
+      description: t('sidebar.descriptions.calendarWeekly'),
+    },
+    {
+      title: t('navigation.notifications'),
+      icon: Bell,
+      url: '/notifications',
+      description: t('sidebar.descriptions.myNotifications'),
     },
   ];
 };
 
-const settingsItem = {
-  title: 'Configuración',
+const getSettingsItem = (t) => ({
+  title: t('navigation.settings'),
   icon: Settings,
   url: '/settings',
-  description: 'Ajustes del sistema',
-};
+  description: t('sidebar.descriptions.settings'),
+});
 
 export function AppSidebar() {
   const location = useLocation();
+  const { t } = useTranslation();
   const { open, toggleSidebar } = useSidebar();
   const { role, isLoadingRole } = useRole();
   const { isFullscreen } = useFullscreen();
   const { currentUser } = useUser();
+  const { unreadCount } = useSystemNotifications();
 
-  const menuItems = getMenuItems(role);
+  const menuItems = getMenuItems(role, t);
+  const settingsItem = getSettingsItem(t);
 
   /**
    * Carga los tickets recientes del sidebar según el rol del usuario
@@ -170,7 +195,7 @@ export function AppSidebar() {
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">
-            <p>{open ? 'Collapse' : 'Expand'}</p>
+            <p>{open ? t('sidebar.collapse') : t('sidebar.expand')}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -179,15 +204,18 @@ export function AppSidebar() {
         {/* Main Navigation */}
         <SidebarGroup className="group-data-[collapsible=icon]:items-center pl-3">
           <SidebarGroupLabel className="px-3 mb-3 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-            Navegación
+            {t('navigation.navigation')}
           </SidebarGroupLabel>
           <SidebarGroupContent className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
             {isLoadingRole ? (
-              <div className="text-xs text-muted-foreground px-3 py-2">Cargando navegación...</div>
+              <div className="text-xs text-muted-foreground px-3 py-2">{t('navigation.loadingNavigation')}</div>
             ) : (
               <SidebarMenu className="space-y-2 group-data-[collapsible=icon]:space-y-3">
                 {menuItems.map((item) => {
                   const isActive = location.pathname === item.url;
+                  const isNotification = item.url === '/notifications';
+                  const showBadge = isNotification && unreadCount > 0;
+                  
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
@@ -200,8 +228,21 @@ export function AppSidebar() {
                         }`}
                       >
                         <Link to={item.url} className="flex items-center">
-                          <item.icon className="w-4 h-4 shrink-0 mr-3" />
+                          <div className="relative">
+                            <item.icon className="w-4 h-4 shrink-0 mr-3" />
+                            {showBadge && !open && (
+                              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />
+                            )}
+                          </div>
                           <span className="font-medium text-sm flex-1">{item.title}</span>
+                          {showBadge && open && (
+                            <Badge 
+                              variant="destructive" 
+                              className="ml-auto h-5 min-w-[20px] px-1.5 text-xs font-medium"
+                            >
+                              {unreadCount > 99 ? '99+' : unreadCount}
+                            </Badge>
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -217,7 +258,7 @@ export function AppSidebar() {
         {/* Settings Section */}
         <SidebarGroup className="group-data-[collapsible=icon]:items-center pl-3">
           <SidebarGroupLabel className="px-3 mb-3 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-            Sistema
+            {t('navigation.system')}
           </SidebarGroupLabel>
           <SidebarGroupContent className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
             <SidebarMenu className="space-y-2 group-data-[collapsible=icon]:space-y-3">

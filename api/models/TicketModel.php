@@ -194,9 +194,11 @@ class TicketModel
         $imageM = new ImageModel();
         
         $vSql = "SELECT sr.idStateRecord, sr.Observation, sr.DateOfChange, 
-                        s.Description AS State
+                        s.Description AS State,
+                        u.Username AS ChangedBy
                  FROM StateRecord sr
                  LEFT JOIN State s ON s.idState = sr.idState
+                 LEFT JOIN User u ON u.idUser = sr.idUser
                  WHERE sr.idTicket = $idTicket
                  ORDER BY sr.DateOfChange ASC";
         
@@ -295,8 +297,33 @@ class TicketModel
             }
         }
 
+        // Crear notificación para el usuario (Sender null = Sistema)
+        $this->createNotification(
+            null,
+            $objeto->idUser,
+            'Ticket Creado',
+            "Tu ticket #{$idTicket} '{$objeto->title}' ha sido creado exitosamente"
+        );
+
         // Retornar el ticket completo creado
         return $this->get($idTicket);
+    }
+
+    /**
+     * Crea una notificación en la base de datos
+     * @param mixed $sender - ID del usuario que envía o null para Sistema
+     */
+    private function createNotification($sender, $reciever, $event, $descripcion)
+    {
+        $senderValue = $sender ? "'" . $this->enlace->escapeString($sender) . "'" : "NULL";
+        $reciever = $this->enlace->escapeString($reciever);
+        $event = $this->enlace->escapeString($event);
+        $descripcion = $this->enlace->escapeString($descripcion);
+        
+        $vSql = "INSERT INTO notification (Descripcion, Sender, Reciever, DateOf, Event, idUser, idState) 
+                 VALUES ('$descripcion', $senderValue, '$reciever', NOW(), '$event', '$reciever', 7)";
+        
+        $this->enlace->ExecuteSQL_DML($vSql);
     }
 
     /**
@@ -371,38 +398,40 @@ class TicketModel
 
             $newState = (int)$objeto->idState;
             $currentState = isset($oldTicket->idState) ? (int)$oldTicket->idState : null;
-
-            $userModel = new UserModel();
-            $actingUser = $userModel->get((int)$objeto->idUser);
-            if (!$actingUser) {
-                throw new Exception('Usuario no válido para registrar el cambio de estado');
-            }
-
-            $actingRole = null;
-            if (isset($actingUser->idRol)) {
-                $actingRole = (int)$actingUser->idRol;
-            } elseif (isset($actingUser->rol) && isset($actingUser->rol->idRol)) {
-                $actingRole = (int)$actingUser->rol->idRol;
-            }
-
-            if (!$actingRole) {
-                throw new Exception('No se pudo determinar el rol del usuario');
-            }
-
-            $technicianTransitions = [
-                2 => [3],
-                3 => [4],
-            ];
-            $clientTransitions = [
-                4 => [5],
-            ];
-            $adminTransitions = [
-                4 => [5],
-            ];
+            $idUserForRecord = (int)$objeto->idUser;
 
             $skipValidation = !empty($objeto->skipStateValidation);
 
+            // Solo validar transiciones si no se saltea la validación
             if (!$skipValidation) {
+                $userModel = new UserModel();
+                $actingUser = $userModel->get($idUserForRecord);
+                if (!$actingUser) {
+                    throw new Exception('Usuario no válido para registrar el cambio de estado');
+                }
+
+                $actingRole = null;
+                if (isset($actingUser->idRol)) {
+                    $actingRole = (int)$actingUser->idRol;
+                } elseif (isset($actingUser->rol) && isset($actingUser->rol->idRol)) {
+                    $actingRole = (int)$actingUser->rol->idRol;
+                }
+
+                if (!$actingRole) {
+                    throw new Exception('No se pudo determinar el rol del usuario');
+                }
+
+                $technicianTransitions = [
+                    2 => [3],
+                    3 => [4],
+                ];
+                $clientTransitions = [
+                    4 => [5],
+                ];
+                $adminTransitions = [
+                    4 => [5],
+                ];
+
                 if ($actingRole === 1) {
                     $allowed = $technicianTransitions[$currentState] ?? [];
                     if (!in_array($newState, $allowed, true)) {
@@ -423,12 +452,11 @@ class TicketModel
                 }
             }
 
-            if ($oldTicket && isset($oldTicket->idState) && $oldTicket->idState != $newState) {
+            // Crear StateRecord si el estado cambió
+            if ($currentState !== null && $currentState != $newState) {
                 $observation = isset($objeto->StateObservation)
                     ? $this->enlace->escapeString($objeto->StateObservation)
                     : 'Estado actualizado';
-
-                $idUserForRecord = (int)$objeto->idUser;
 
                 $vSqlStateRecord = "INSERT INTO StateRecord (idTicket, idState, idUser, Observation, DateOfChange)
                                     VALUES (
@@ -440,6 +468,42 @@ class TicketModel
                                     )";
                 $idStateRecord = $this->enlace->executeSQL_DML_last($vSqlStateRecord);
 
+                // Crear notificación de cambio de estado (excepto estado 2 = Asignado, que ya tiene notificaciones específicas)
+                // (con try-catch para no afectar la operación principal)
+                if ($newState != 2) {
+                    try {
+                        $stateM = new StateModel();
+                        $newStateObj = $stateM->get($newState);
+                        $newStateName = $newStateObj ? $newStateObj->Description : 'Desconocido';
+                        
+                        // Notificar al creador del ticket
+                        if (isset($oldTicket->idUser) && $oldTicket->idUser != $idUserForRecord) {
+                            $this->createNotification(
+                                $idUserForRecord,
+                                $oldTicket->idUser,
+                                "Cambio de estado",
+                                "Tu ticket #$idTicket ha cambiado a: $newStateName"
+                            );
+                        }
+                        
+                        // Notificar al técnico asignado si existe y no es quien hizo el cambio
+                        if (isset($oldTicket->Assign) && isset($oldTicket->Assign->Technician) && isset($oldTicket->Assign->Technician->idUser)) {
+                            $techUserId = $oldTicket->Assign->Technician->idUser;
+                            if ($techUserId != $idUserForRecord) {
+                                $this->createNotification(
+                                    $idUserForRecord,
+                                    $techUserId,
+                                    "Cambio de estado",
+                                    "El ticket #$idTicket ha cambiado a: $newStateName"
+                                );
+                            }
+                        }
+                    } catch (Exception $notifError) {
+                        error_log("Error creando notificación de cambio de estado: " . $notifError->getMessage());
+                    }
+                }
+
+                // Guardar imágenes si hay
                 if (!empty($objeto->StateImages) && is_array($objeto->StateImages)) {
                     $imageM = new ImageModel();
                     foreach ($objeto->StateImages as $imageString) {
@@ -463,6 +527,7 @@ class TicketModel
                 }
             }
 
+            // Siempre agregar el cambio de estado al array de updates
             $updates[] = "idState = $newState";
         }
 

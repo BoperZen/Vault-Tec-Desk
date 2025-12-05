@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Bell, Maximize, Minimize, User, Settings, LogOut } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Bell, Maximize, Minimize, User, Settings, LogOut, RefreshCw, UserPlus, ArrowRightLeft, Ticket, CheckCircle, ExternalLink, Globe } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/context/UserContext';
+import { useSystemNotifications } from '@/context/SystemNotificationContext';
 import { useSidebar } from '@/components/ui/sidebar';
 import { useFullscreen } from '@/context/FullscreenContext';
 import { cn } from '@/lib/utils';
@@ -26,27 +27,108 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-// Mock notifications - en el futuro vendrán de una API/context
-const mockNotifications = [
-  { id: 1, title: 'Nuevo ticket asignado', description: 'Ticket #245 - Problema con impresora', time: 'Hace 5 min', read: false },
-  { id: 2, title: 'SLA próximo a vencer', description: 'Ticket #198 vence en 30 minutos', time: 'Hace 12 min', read: false },
-  { id: 3, title: 'Ticket resuelto', description: 'El cliente cerró el ticket #201', time: 'Hace 1 hora', read: false },
-  { id: 4, title: 'Nueva asignación automática', description: 'Ticket #250 asignado por autotriaje', time: 'Hace 2 horas', read: true },
-  { id: 5, title: 'Comentario en ticket', description: 'Juan agregó un comentario en #189', time: 'Hace 3 horas', read: true },
-  { id: 6, title: 'Valoración recibida', description: 'Cliente valoró el ticket #195 con 5 estrellas', time: 'Hace 4 horas', read: true },
-  { id: 7, title: 'Recordatorio SLA', description: 'Ticket #210 tiene SLA vencido', time: 'Hace 5 horas', read: true },
-  { id: 8, title: 'Técnico disponible', description: 'Carlos está disponible para asignación', time: 'Hace 6 horas', read: true },
-];
+// Estados de lectura (de la tabla state)
+const STATE_READ = 6;    // Leído
+const STATE_UNREAD = 7;  // Sin leer
+
+// Helper para verificar si está leída (comparar como number)
+const isRead = (notification) => parseInt(notification.idState) === STATE_READ;
+
+// Formatear tiempo relativo
+const formatRelativeTime = (dateString, t) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return t('notifications.time.now');
+  if (diffMins < 60) return t('notifications.time.minutesAgo', { count: diffMins });
+  if (diffHours < 24) return t('notifications.time.hoursAgo', { count: diffHours });
+  if (diffDays < 7) return t('notifications.time.daysAgo', { count: diffDays });
+  return date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+};
+
+// Configuración de iconos y colores por tipo de evento
+const getNotificationStyle = (event) => {
+  const eventLower = (event || '').toLowerCase();
+  
+  if (eventLower.includes('asignado') || eventLower.includes('ticket asignado')) {
+    return {
+      icon: UserPlus,
+      bgColor: 'bg-blue-500/10',
+      iconColor: 'text-blue-500',
+      borderColor: 'border-l-blue-500'
+    };
+  }
+  if (eventLower.includes('técnico asignado') || eventLower.includes('tecnico asignado')) {
+    return {
+      icon: UserPlus,
+      bgColor: 'bg-indigo-500/10',
+      iconColor: 'text-indigo-500',
+      borderColor: 'border-l-indigo-500'
+    };
+  }
+  if (eventLower.includes('cambio de estado') || eventLower.includes('estado')) {
+    return {
+      icon: ArrowRightLeft,
+      bgColor: 'bg-amber-500/10',
+      iconColor: 'text-amber-500',
+      borderColor: 'border-l-amber-500'
+    };
+  }
+  if (eventLower.includes('creado') || eventLower.includes('ticket creado')) {
+    return {
+      icon: Ticket,
+      bgColor: 'bg-green-500/10',
+      iconColor: 'text-green-500',
+      borderColor: 'border-l-green-500'
+    };
+  }
+  if (eventLower.includes('cerrado') || eventLower.includes('resuelto')) {
+    return {
+      icon: CheckCircle,
+      bgColor: 'bg-emerald-500/10',
+      iconColor: 'text-emerald-500',
+      borderColor: 'border-l-emerald-500'
+    };
+  }
+  // Default
+  return {
+    icon: Bell,
+    bgColor: 'bg-muted/50',
+    iconColor: 'text-muted-foreground',
+    borderColor: 'border-l-muted-foreground'
+  };
+};
 
 export default function Header() {
   const { currentUser } = useUser();
   const { open } = useSidebar();
   const { isFullscreen, toggleFullscreen } = useFullscreen();
-  const [notifications] = useState(mockNotifications);
+  const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+  const { 
+    notifications, 
+    unreadCount, 
+    isLoading, 
+    refresh 
+  } = useSystemNotifications();
   
-  const unreadCount = notifications.filter(n => !n.read).length;
   const visibleNotifications = notifications.slice(0, 6);
-  const remainingCount = notifications.length - 6;
+
+  // Cambiar idioma
+  const toggleLanguage = () => {
+    const newLang = i18n.language === 'es' ? 'en' : 'es';
+    i18n.changeLanguage(newLang);
+  };
+
+  // Navegar a la página de notificaciones con el ID seleccionado
+  const handleNotificationClick = (notification) => {
+    navigate(`/notifications?id=${notification.idNotification}`);
+  };
 
   return (
     <header 
@@ -95,7 +177,24 @@ export default function Header() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p>{isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}</p>
+                <p>{isFullscreen ? t('header.exitFullscreen') : t('header.fullscreen')}</p>
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Language Toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleLanguage}
+                  className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                >
+                  <Globe className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>{i18n.language === 'es' ? 'English' : 'Español'}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -118,50 +217,91 @@ export default function Header() {
               <PopoverContent className="w-80 p-0" align="end">
                 <div className="p-3 border-b border-border">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-sm">Notificaciones</h4>
-                    {unreadCount > 0 && (
-                      <span className="text-xs text-muted-foreground">{unreadCount} sin leer</span>
-                    )}
+                    <h4 className="font-semibold text-sm">{t('header.notifications')}</h4>
+                    <div className="flex items-center gap-2">
+                      {unreadCount > 0 && (
+                        <span className="text-xs text-muted-foreground">{unreadCount} {t('header.unread')}</span>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={refresh}
+                        disabled={isLoading}
+                      >
+                        <RefreshCw className={cn("h-3 w-3", isLoading && "animate-spin")} />
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 <div className="max-h-[320px] overflow-y-auto">
-                  {visibleNotifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={cn(
-                        "p-3 border-b border-border/50 hover:bg-muted/50 cursor-pointer transition-colors",
-                        !notification.read && "bg-yellow-500/5"
-                      )}
-                    >
-                      <div className="flex items-start gap-3">
-                        {!notification.read && (
-                          <span className="h-2 w-2 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
-                        )}
-                        <div className={cn("flex-1 min-w-0", notification.read && "ml-5")}>
-                          <p className="text-sm font-medium truncate">{notification.title}</p>
-                          <p className="text-xs text-muted-foreground truncate">{notification.description}</p>
-                          <p className="text-[10px] text-muted-foreground mt-1">{notification.time}</p>
-                        </div>
-                      </div>
+                  {isLoading && notifications.length === 0 ? (
+                    <div className="p-6 text-center">
+                      <RefreshCw className="h-6 w-6 text-muted-foreground/50 mx-auto mb-2 animate-spin" />
+                      <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
                     </div>
-                  ))}
+                  ) : visibleNotifications.length > 0 ? (
+                    visibleNotifications.map((notification) => {
+                      const style = getNotificationStyle(notification.Event);
+                      const IconComponent = style.icon;
+                      return (
+                        <div
+                          key={notification.idNotification}
+                          onClick={() => handleNotificationClick(notification)}
+                          className={cn(
+                            "p-3 border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-all border-l-2",
+                            !isRead(notification) ? style.borderColor : "border-l-transparent",
+                            !isRead(notification) && style.bgColor
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={cn(
+                              "h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0",
+                              !isRead(notification) ? style.bgColor : "bg-muted/30"
+                            )}>
+                              <IconComponent className={cn(
+                                "h-4 w-4",
+                                !isRead(notification) ? style.iconColor : "text-muted-foreground/50"
+                              )} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className={cn(
+                                  "text-sm font-medium truncate",
+                                  !isRead(notification) && "text-foreground",
+                                  isRead(notification) && "text-muted-foreground"
+                                )}>
+                                  {notification.Event || t('notifications.events.notification')}
+                                </p>
+                                {!isRead(notification) && (
+                                  <span className="h-1.5 w-1.5 rounded-full bg-yellow-500 flex-shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate">{notification.Descripcion}</p>
+                              <p className="text-[10px] text-muted-foreground/70 mt-1">{formatRelativeTime(notification.DateOf, t)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="p-6 text-center">
+                      <Bell className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">{t('header.noNotifications')}</p>
+                    </div>
+                  )}
                 </div>
-                {remainingCount > 0 && (
+                {notifications.length > 0 && (
                   <div className="p-2 border-t border-border">
-                    <Link 
-                      to="/notifications" 
-                      className="text-xs text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 py-1"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs h-8 gap-2 hover:bg-yellow-500/10 hover:text-yellow-600"
+                      onClick={() => navigate('/notifications')}
                     >
-                      <span>+{remainingCount} más</span>
-                      <span className="text-muted-foreground/60">•••</span>
-                      <span>Ver todas</span>
-                    </Link>
-                  </div>
-                )}
-                {notifications.length === 0 && (
-                  <div className="p-6 text-center">
-                    <Bell className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">Sin notificaciones</p>
+                      <ExternalLink className="h-3 w-3" />
+                      {t('header.viewAllNotifications')}
+                    </Button>
                   </div>
                 )}
               </PopoverContent>
@@ -194,19 +334,19 @@ export default function Header() {
                 <DropdownMenuItem asChild>
                   <Link to="/profile" className="cursor-pointer">
                     <User className="mr-2 h-4 w-4" />
-                    <span>Mi Perfil</span>
+                    <span>{t('header.myProfile')}</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/settings" className="cursor-pointer">
                     <Settings className="mr-2 h-4 w-4" />
-                    <span>Configuración</span>
+                    <span>{t('header.settings')}</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-destructive cursor-pointer">
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Cerrar Sesión</span>
+                  <span>{t('header.logout')}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

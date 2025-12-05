@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   FolderKanban,
   Tag,
@@ -28,6 +29,7 @@ import SpecialtyService from '@/services/SpecialtyService';
  * Formulario completo de mantenimiento de categorías
  */
 export default function UpkeepCategory() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditing = !!id;
@@ -129,7 +131,7 @@ export default function UpkeepCategory() {
       }
     } catch (err) {
       console.error('Error al cargar datos:', err);
-      setError(err.message || 'Error al cargar los datos del formulario');
+      setError(err.message || t('categories.messages.loadError'));
     } finally {
       setLoading(false);
     }
@@ -181,19 +183,19 @@ export default function UpkeepCategory() {
   const validateForm = () => {
     // Validar nombre
     if (!formData.Categoryname.trim()) {
-      setError('El nombre de la categoría es obligatorio');
+      setError(t('categories.validation.nameRequired'));
       return false;
     }
 
     // Validar tiempo de respuesta
     if (!formData.MaxAnswerTime || formData.MaxAnswerTime <= 0) {
-      setError('El tiempo de respuesta debe ser mayor a 0');
+      setError(t('categories.validation.responseTimeRequired'));
       return false;
     }
 
     // Validar tiempo de resolución
     if (!formData.MaxResolutionTime || formData.MaxResolutionTime <= 0) {
-      setError('El tiempo de resolución debe ser mayor a 0');
+      setError(t('categories.validation.resolutionTimeRequired'));
       return false;
     }
 
@@ -202,25 +204,25 @@ export default function UpkeepCategory() {
     const resolutionTime = parseInt(formData.MaxResolutionTime);
     
     if (resolutionTime <= answerTime) {
-      setError('El tiempo de resolución debe ser mayor al tiempo de respuesta');
+      setError(t('categories.validation.resolutionGreaterThanResponse'));
       return false;
     }
 
     // Validar prioridad
     if (!formData.idPriority) {
-      setError('Debe seleccionar una prioridad');
+      setError(t('categories.validation.priorityRequired'));
       return false;
     }
 
     // Validar etiquetas
     if (!formData.selectedLabels || formData.selectedLabels.length === 0) {
-      setError('Debe seleccionar al menos una etiqueta');
+      setError(t('categories.validation.labelsRequired'));
       return false;
     }
 
     // Validar especialidades
     if (!formData.selectedSpecialties || formData.selectedSpecialties.length === 0) {
-      setError('Debe seleccionar al menos una especialidad');
+      setError(t('categories.validation.specialtiesRequired'));
       return false;
     }
 
@@ -254,14 +256,14 @@ export default function UpkeepCategory() {
       if (isEditing) {
         categoryData.idCategory = parseInt(formData.idCategory);
         await CategoryService.updateCategory(categoryData);
-        navigate('/categories', { state: { notification: { message: 'Categoría actualizada correctamente', type: 'success' } } });
+        navigate('/categories', { state: { notification: { message: t('categories.messages.updateSuccess'), type: 'success' } } });
       } else {
         await CategoryService.createCategory(categoryData);
-        navigate('/categories', { state: { notification: { message: 'Categoría creada correctamente', type: 'success' } } });
+        navigate('/categories', { state: { notification: { message: t('categories.messages.createSuccess'), type: 'success' } } });
       }
     } catch (err) {
       console.error('Error al guardar categoría:', err);
-      setError(err.response?.data?.message || 'Error al guardar la categoría');
+      setError(err.response?.data?.message || t('categories.messages.saveError'));
       setSaving(false);
     }
   };
@@ -303,7 +305,7 @@ export default function UpkeepCategory() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-muted-foreground">Cargando formulario...</p>
+          <p className="mt-4 text-muted-foreground">{t('categories.loadingForm')}</p>
         </div>
       </div>
     );
@@ -319,17 +321,17 @@ export default function UpkeepCategory() {
             </div>
             <div className="flex-1">
               <CardTitle className="text-2xl">
-                {isEditing ? 'Editar Categoría' : 'Crear Nueva Categoría'}
+                {isEditing ? t('categories.form.editTitle') : t('categories.form.createTitle')}
               </CardTitle>
               <CardDescription>
                 {isEditing 
-                  ? 'Actualiza la información de la categoría existente'
-                  : 'Complete el formulario para registrar una nueva categoría en el sistema'
+                  ? t('categories.form.editDescription')
+                  : t('categories.form.createDescription')
                 }
               </CardDescription>
             </div>
             <Badge variant={isEditing ? "secondary" : "default"}>
-              {isEditing ? `ID: ${id}` : 'Nueva'}
+              {isEditing ? `ID: ${id}` : t('categories.new')}
             </Badge>
           </div>
         </CardHeader>
@@ -348,13 +350,13 @@ export default function UpkeepCategory() {
             <div className="space-y-2">
               <Label htmlFor="categoryname" className="flex items-center gap-2">
                 <FolderKanban className="h-4 w-4" />
-                Nombre de la Categoría
+                {t('categories.fields.name')}
                 <span className="text-red-500">*</span>
               </Label>
               <input
                 type="text"
                 id="categoryname"
-                placeholder="Nombre de la categoría"
+                placeholder={t('categories.fields.namePlaceholder')}
                 value={formData.Categoryname}
                 onChange={(e) => handleInputChange('Categoryname', e.target.value)}
                 disabled={saving}
@@ -370,7 +372,7 @@ export default function UpkeepCategory() {
               <div className="space-y-2">
                 <Label htmlFor="answertime" className="flex items-center gap-2">
                   <Clock className="h-4 w-4" />
-                  Tiempo Respuesta. (h)
+                  {t('categories.sla.responseTime')}
                   <span className="text-red-500">*</span>
                 </Label>
                 <input
@@ -389,7 +391,7 @@ export default function UpkeepCategory() {
               <div className="space-y-2">
                 <Label htmlFor="resolutiontime" className="flex items-center gap-2">
                   <Clock className="h-4 w-4" />
-                  Tiempo Resolucion. (h)
+                  {t('categories.sla.resolutionTime')}
                   <span className="text-red-500">*</span>
                 </Label>
                 <input
@@ -408,14 +410,14 @@ export default function UpkeepCategory() {
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <Star className="h-4 w-4" />
-                  Prioridad
+                  {t('categories.priority.title')}
                   <span className="text-red-500">*</span>
                 </Label>
                 <div className="flex gap-2">
                   {[
-                    { id: '1', label: 'Baja' },
-                    { id: '2', label: 'Media' },
-                    { id: '3', label: 'Alta' }
+                    { id: '1', labelKey: 'categories.priority.low' },
+                    { id: '2', labelKey: 'categories.priority.medium' },
+                    { id: '3', labelKey: 'categories.priority.high' }
                   ].map((priority) => {
                     const isSelected = formData.idPriority == priority.id;
                     return (
@@ -433,7 +435,7 @@ export default function UpkeepCategory() {
                         } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
                         onClick={() => !saving && handleInputChange('idPriority', priority.id)}
                       >
-                        {priority.label}
+                        {t(priority.labelKey)}
                       </Badge>
                     );
                   })}
@@ -447,7 +449,7 @@ export default function UpkeepCategory() {
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Tag className="h-4 w-4" />
-                Etiquetas Asociadas
+                {t('categories.labels.associated')}
                 <span className="text-red-500">*</span>
               </Label>
               <div className="flex flex-wrap gap-2 items-center">
@@ -470,12 +472,12 @@ export default function UpkeepCategory() {
                     onClick={() => !saving && getAvailableLabelsFiltered().length > 0 && setLabelsPopoverOpen(!labelsPopoverOpen)}
                   >
                     <Plus className="w-3 h-3" />
-                    Agregar Etiqueta
+                    {t('categories.labels.addLabel')}
                   </Badge>
                   {labelsPopoverOpen && getAvailableLabelsFiltered().length > 0 && (
                     <div className="absolute left-full top-0 ml-2 z-50 w-80 bg-background border rounded-lg shadow-lg p-3 animate-in slide-in-from-left-2">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">Seleccionar Etiqueta</span>
+                        <span className="text-sm font-medium">{t('categories.labels.selectLabel')}</span>
                         <Button
                           type="button"
                           variant="ghost"
@@ -512,7 +514,7 @@ export default function UpkeepCategory() {
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Briefcase className="h-4 w-4" />
-                Especialidades Requeridas
+                {t('categories.specialties.title')}
                 <span className="text-red-500">*</span>
               </Label>
               <div className="flex flex-col gap-2">
@@ -535,12 +537,12 @@ export default function UpkeepCategory() {
                     onClick={() => !saving && getAvailableSpecialtiesFiltered().length > 0 && setSpecialtiesPopoverOpen(!specialtiesPopoverOpen)}
                   >
                     <Plus className="w-3 h-3" />
-                    Agregar Especialidad
+                    {t('categories.specialties.addSpecialty')}
                   </Badge>
                   {specialtiesPopoverOpen && getAvailableSpecialtiesFiltered().length > 0 && (
                     <div className="absolute top-full left-0 mt-2 z-50 w-full bg-background border rounded-lg shadow-lg p-3 animate-in slide-in-from-top-2">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">Seleccionar Especialidad</span>
+                        <span className="text-sm font-medium">{t('categories.specialties.selectSpecialty')}</span>
                         <Button
                           type="button"
                           variant="ghost"
@@ -582,7 +584,7 @@ export default function UpkeepCategory() {
                 disabled={saving}
               >
                 <X className="h-4 w-4 mr-2" />
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -591,12 +593,12 @@ export default function UpkeepCategory() {
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Guardando...
+                    {t('common.saving')}
                   </>
                 ) : (
                   <>
                     <Save className="h-4 w-4 mr-2" />
-                    {isEditing ? 'Actualizar Categoría' : 'Crear Categoría'}
+                    {isEditing ? t('categories.form.updateCategory') : t('categories.form.createCategoryBtn')}
                   </>
                 )}
               </Button>

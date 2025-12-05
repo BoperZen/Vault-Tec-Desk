@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL + 'assign';
+const WORKFLOW_URL = import.meta.env.VITE_BASE_URL + 'workflowrules';
 
 /**
  * Servicio para gestionar las asignaciones de tickets a técnicos
@@ -55,6 +56,15 @@ class AssignService {
    */
   deleteAssignment(assignId) {
     return axios.delete(`${BASE_URL}/${assignId}`);
+  }
+
+  /**
+   * Obtiene todas las reglas de workflow para auto-triage ordenadas por OrderPriority
+   * GET http://localhost:81/Vault-Tec-Desk/api/workflowrules
+   * @returns {Promise} - Promise con la respuesta de axios
+   */
+  getWorkFlowRules() {
+    return axios.get(WORKFLOW_URL);
   }
 }
 

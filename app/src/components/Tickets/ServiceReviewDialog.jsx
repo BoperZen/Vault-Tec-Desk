@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,7 @@ export default function ServiceReviewDialog({
   onSubmit,
   loading,
 }) {
+  const { t } = useTranslation();
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState('');
@@ -57,9 +59,9 @@ export default function ServiceReviewDialog({
                 <Star className="h-5 w-5 text-primary fill-primary" />
               </div>
               <div>
-                <DialogTitle className="text-card-foreground">Valorar Servicio</DialogTitle>
+                <DialogTitle className="text-card-foreground">{t('tickets.review.dialogTitle')}</DialogTitle>
                 <DialogDescription className="text-muted-foreground">
-                  Califica la atención del ticket #{ticket?.idTicket}: "{ticket?.Title}"
+                  {t('tickets.review.description', { id: ticket?.idTicket, title: ticket?.Title })}
                 </DialogDescription>
               </div>
             </div>
@@ -69,7 +71,7 @@ export default function ServiceReviewDialog({
           <div className="space-y-3">
             <Label className="text-card-foreground flex items-center gap-2">
               <Star className="h-4 w-4" />
-              Calificación
+              {t('tickets.review.rating')}
               <span className="text-destructive">*</span>
             </Label>
             <div className="flex items-center gap-1">
@@ -104,7 +106,7 @@ export default function ServiceReviewDialog({
           <div className="space-y-2">
             <Label htmlFor="review-comment" className="flex items-center gap-2 text-card-foreground">
               <MessageSquare className="h-4 w-4" />
-              Comentario
+              {t('tickets.review.comment')}
               <span className="text-destructive">*</span>
             </Label>
             <textarea
@@ -114,16 +116,16 @@ export default function ServiceReviewDialog({
               onChange={(event) => setComment(event.target.value)}
               disabled={loading}
               className="w-full px-3 py-2 text-base border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-placeholder"
-              placeholder="Describe tu experiencia con el servicio recibido..."
+              placeholder={t('tickets.review.commentPlaceholder')}
             />
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-              Cancelar
+              {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={rating === 0 || !comment.trim() || loading}>
-              {loading ? 'Enviando...' : 'Enviar Valoración'}
+              {loading ? t('tickets.review.submitting') : t('tickets.review.submit')}
             </Button>
           </DialogFooter>
         </form>

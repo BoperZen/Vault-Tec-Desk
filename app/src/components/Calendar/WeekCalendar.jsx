@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   ChevronLeft,
   ChevronRight,
@@ -25,11 +26,11 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 
-const DAYS_FULL = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-const DAYS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-const MONTHS = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+const DAYS_FULL_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const DAYS_SHORT_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const MONTHS_KEYS = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december'
 ];
 
 const getStateColor = (state) => {
@@ -109,6 +110,7 @@ const getSLAProgressColor = (urgency) => {
 
 export default function WeekCalendar() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { currentUser } = useUser();
   const userId = currentUser?.idUser;
   
@@ -320,10 +322,15 @@ export default function WeekCalendar() {
             <div>
               <CardTitle className="text-2xl flex items-center gap-2">
                 <CalendarIcon className="w-6 h-6" />
-                Mi Calendario Semanal
+                {t('calendar.weekCalendar.title')}
               </CardTitle>
               <CardDescription>
-                Semana del {weekDays[0]?.getDate()} al {weekDays[6]?.getDate()} de {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
+                {t('calendar.weekCalendar.weekOf', {
+                  start: weekDays[0]?.getDate(),
+                  end: weekDays[6]?.getDate(),
+                  month: t(`calendar.months.${MONTHS_KEYS[currentDate.getMonth()]}`),
+                  year: currentDate.getFullYear()
+                })}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -331,7 +338,7 @@ export default function WeekCalendar() {
                 <ChevronLeft className="w-4 h-4" />
               </Button>
               <Button variant="outline" onClick={goToToday}>
-                {selectedDay?.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) || 'Seleccionar fecha'}
+                {selectedDay?.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) || t('calendar.weekCalendar.selectDate')}
               </Button>
               <Button variant="outline" size="icon" onClick={nextWeek}>
                 <ChevronRight className="w-4 h-4" />
@@ -347,7 +354,7 @@ export default function WeekCalendar() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total</p>
+                <p className="text-sm text-muted-foreground">{t('calendar.weekCalendar.total')}</p>
                 <p className="text-2xl font-bold">{weekStats.total}</p>
               </div>
               <Ticket className="w-8 h-8 text-primary" />
@@ -358,7 +365,7 @@ export default function WeekCalendar() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Pendientes</p>
+                <p className="text-sm text-muted-foreground">{t('calendar.weekCalendar.pending')}</p>
                 <p className="text-2xl font-bold text-orange-500">{weekStats.pending}</p>
               </div>
               <AlertCircle className="w-8 h-8 text-orange-500" />
@@ -369,7 +376,7 @@ export default function WeekCalendar() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">En Proceso</p>
+                <p className="text-sm text-muted-foreground">{t('calendar.weekCalendar.inProgress')}</p>
                 <p className="text-2xl font-bold text-yellow-500">{weekStats.inProgress}</p>
               </div>
               <Clock className="w-8 h-8 text-yellow-500" />
@@ -380,7 +387,7 @@ export default function WeekCalendar() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Resueltos</p>
+                <p className="text-sm text-muted-foreground">{t('calendar.weekCalendar.resolved')}</p>
                 <p className="text-2xl font-bold text-green-500">{weekStats.resolved}</p>
               </div>
               <CheckCircle2 className="w-8 h-8 text-green-500" />
@@ -407,14 +414,14 @@ export default function WeekCalendar() {
               <CardHeader className="pb-3">
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground font-medium">
-                    {DAYS_SHORT[day.getDay()]}
+                    {t(`calendar.days.${DAYS_SHORT_KEYS[day.getDay()]}`)}
                   </p>
                   <p className={`text-2xl font-bold ${isTodayDay ? 'text-primary' : ''}`}>
                     {day.getDate()}
                   </p>
                   {dayTickets.length > 0 && (
                     <Badge variant="secondary" className="mt-2">
-                      {dayTickets.length} ticket{dayTickets.length !== 1 ? 's' : ''}
+                      {dayTickets.length} {dayTickets.length !== 1 ? t('calendar.weekCalendar.tickets') : t('calendar.weekCalendar.ticket')}
                     </Badge>
                   )}
                 </div>
@@ -441,7 +448,7 @@ export default function WeekCalendar() {
                           {ticket.Title}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {ticket.Category || 'Sin categoría'}
+                          {ticket.Category || t('calendar.weekCalendar.noCategory')}
                         </p>
                         {sla.urgency !== 'completed' && (
                           <div className="mt-1.5">
@@ -468,12 +475,12 @@ export default function WeekCalendar() {
                   })}
                   {dayTickets.length > 3 && (
                     <p className="text-xs text-muted-foreground text-center">
-                      +{dayTickets.length - 3} más
+                      {t('calendar.weekCalendar.more', { count: dayTickets.length - 3 })}
                     </p>
                   )}
                   {dayTickets.length === 0 && (
                     <p className="text-xs text-muted-foreground text-center py-4">
-                      Sin tickets
+                      {t('calendar.weekCalendar.noTickets')}
                     </p>
                   )}
                 </div>
@@ -489,12 +496,12 @@ export default function WeekCalendar() {
           <CardHeader>
             <CardTitle>
               {isToday(selectedDay) 
-                ? `Hoy, ${selectedDay.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}`
-                : `${DAYS_FULL[selectedDay.getDay()]}, ${selectedDay.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                ? `${t('calendar.today')}, ${selectedDay.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                : `${t(`calendar.days.${DAYS_FULL_KEYS[selectedDay.getDay()]}`)}, ${selectedDay.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}`
               }
             </CardTitle>
             <CardDescription>
-              {selectedDayTickets.length} ticket{selectedDayTickets.length !== 1 ? 's' : ''} en este día
+              {t('calendar.weekCalendar.ticketsOnDay', { count: selectedDayTickets.length })}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -533,7 +540,7 @@ export default function WeekCalendar() {
                           <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
                             <span className="flex items-center gap-1">
                               <CategoryIcon className="w-3 h-3" />
-                              {ticket.Category || 'Sin categoría'}
+                              {ticket.Category || t('calendar.weekCalendar.noCategory')}
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
@@ -544,7 +551,7 @@ export default function WeekCalendar() {
                             </span>
                             {ticket.Assign?.Technician && (
                               <span className="flex items-center gap-1">
-                                Técnico: {ticket.Assign.Technician.User?.username || 'No asignado'}
+                                {t('calendar.weekCalendar.technician')}: {ticket.Assign.Technician.User?.username || t('calendar.weekCalendar.notAssigned')}
                               </span>
                             )}
                           </div>
@@ -554,14 +561,14 @@ export default function WeekCalendar() {
                             <div className="mb-3 p-2 bg-muted/50 rounded">
                               <div className="flex items-center justify-between mb-1">
                                 <span className="text-xs font-medium text-muted-foreground">
-                                  Tiempo SLA Restante
+                                  {t('calendar.weekCalendar.slaRemaining')}
                                 </span>
                                 <span className={`text-xs font-bold ${
                                   sla.urgency === 'critical' ? 'text-red-500' :
                                   sla.urgency === 'warning' ? 'text-yellow-500' :
                                   'text-green-500'
                                 }`}>
-                                  {sla.hoursRemaining} horas
+                                  {sla.hoursRemaining} {t('calendar.weekCalendar.hours')}
                                 </span>
                               </div>
                               <Progress 
@@ -575,7 +582,7 @@ export default function WeekCalendar() {
                               {sla.urgency === 'critical' && (
                                 <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                                   <AlertCircle className="w-3 h-3" />
-                                  ¡Urgente! SLA próximo a vencer
+                                  {t('calendar.weekCalendar.urgentSla')}
                                 </p>
                               )}
                             </div>
@@ -590,25 +597,7 @@ export default function WeekCalendar() {
                               onClick={() => navigate('/tickets')}
                             >
                               <Eye className="w-3 h-3" />
-                              Ver Ticket
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              className="gap-2"
-                              disabled
-                            >
-                              <Edit className="w-3 h-3" />
-                              Cambiar Estado
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              className="gap-2"
-                              disabled
-                            >
-                              <MessageSquare className="w-3 h-3" />
-                              Comentar
+                              {t('calendar.viewTicket')}
                             </Button>
                           </div>
                         </div>
@@ -620,7 +609,7 @@ export default function WeekCalendar() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <CalendarIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No hay tickets en este día</p>
+                <p>{t('calendar.weekCalendar.noTicketsOnDay')}</p>
               </div>
             )}
           </CardContent>

@@ -1,8 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
+import './i18n'; // Importar configuración de i18n
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { UserProvider } from './context/UserContext';
+import { SystemNotificationProvider } from './context/SystemNotificationContext';
 import { Layout } from './components/Layout/Layout';
 import Dashboard from './components/Dashboard/Dashboard';
 import { PageNotFound } from './components/Home/PageNotFound';
@@ -13,6 +15,7 @@ import UpkeepTechnician from './components/Technicians/UpkeepTechnician';
 import CalendarView from './components/Calendar/CalendarView';
 import CategoryList from './components/Categories/CategoryList';
 import UpkeepCategory from './components/Categories/UpkeepCategory';
+import NotificationList from './components/Notifications/NotificationList';
 
 const rutas = createBrowserRouter([
   {
@@ -36,6 +39,8 @@ const rutas = createBrowserRouter([
       { path: "categories", element: <CategoryList /> },
       { path: "categories/create", element: <UpkeepCategory /> },
       { path: "categories/edit/:id", element: <UpkeepCategory /> },
+      // Notificaciones
+      { path: "notifications", element: <NotificationList /> },
       // Configuración
       { path: "settings", element: <div className="p-8 text-center"><h2 className="text-2xl font-bold">Configuración - En construcción</h2></div> },
       // Ruta comodín (404)
@@ -47,7 +52,9 @@ const rutas = createBrowserRouter([
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <UserProvider>
-      <RouterProvider router={rutas} />
+      <SystemNotificationProvider>
+        <RouterProvider router={rutas} />
+      </SystemNotificationProvider>
     </UserProvider>
   </StrictMode>
 );

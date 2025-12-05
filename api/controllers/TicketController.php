@@ -8,6 +8,19 @@ class ticket
             //Obtener el listado del Modelo
             $ticket = new TicketModel();
             $result = $ticket->all();
+            
+            // Si no hay tickets, devolver array vacío con éxito (no 404)
+            if (empty($result) || !is_array($result)) {
+                http_response_code(200);
+                echo json_encode([
+                    "success" => true,
+                    "status" => 200,
+                    "message" => "Solicitud exitosa",
+                    "data" => []
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+            
             //Dar respuesta
             $response->toJSON($result);
         } catch (Exception $e) {

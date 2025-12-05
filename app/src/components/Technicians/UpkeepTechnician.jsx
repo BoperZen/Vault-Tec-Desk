@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   User,
   Briefcase,
@@ -32,6 +33,7 @@ import SpecialtyService from '@/services/SpecialtyService';
  * Formulario completo de mantenimiento de técnicos
  */
 export default function UpkeepTechnician() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditing = !!id;
@@ -118,7 +120,7 @@ export default function UpkeepTechnician() {
       }
     } catch (err) {
       console.error('Error al cargar datos:', err);
-      setError(err.message || 'Error al cargar los datos del formulario');
+      setError(err.message || t('technicians.messages.loadError'));
     } finally {
       setLoading(false);
     }
@@ -158,54 +160,54 @@ export default function UpkeepTechnician() {
   const validateForm = () => {
     // Validar nombre de usuario
     if (!formData.Username.trim()) {
-      setError('El nombre de usuario es obligatorio');
+      setError(t('technicians.validation.usernameRequired'));
       return false;
     }
 
     if (formData.Username.trim().length < 3) {
-      setError('El nombre de usuario debe tener al menos 3 caracteres');
+      setError(t('technicians.validation.usernameMin'));
       return false;
     }
 
     // Validar email
     if (!formData.Email.trim()) {
-      setError('El correo electrónico es obligatorio');
+      setError(t('technicians.validation.emailRequired'));
       return false;
     }
 
     // Validación de formato de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.Email)) {
-      setError('El correo electrónico no es válido');
+      setError(t('technicians.validation.emailInvalid'));
       return false;
     }
 
     // Validar especialidades
     if (!formData.selectedSpecialties || formData.selectedSpecialties.length === 0) {
-      setError('Debe seleccionar al menos una especialidad');
+      setError(t('technicians.validation.specialtyRequired'));
       return false;
     }
     
     // Validar contraseña solo si no estamos editando o si se está cambiando
     if (!isEditing || formData.Password) {
       if (!formData.Password) {
-        setError('La contraseña es obligatoria');
+        setError(t('technicians.validation.passwordRequired'));
         return false;
       }
 
       if (formData.Password.length < 6) {
-        setError('La contraseña debe tener al menos 6 caracteres');
+        setError(t('technicians.validation.passwordMin'));
         return false;
       }
 
       // Validar confirmación de contraseña
       if (!formData.ConfirmPassword) {
-        setError('Debe confirmar la contraseña');
+        setError(t('technicians.validation.confirmPasswordRequired'));
         return false;
       }
 
       if (formData.Password !== formData.ConfirmPassword) {
-        setError('Las contraseñas no coinciden');
+        setError(t('technicians.validation.passwordMismatch'));
         return false;
       }
     }
@@ -231,7 +233,7 @@ export default function UpkeepTechnician() {
       }).filter(id => id !== null);
 
       if (specialtyIds.length === 0) {
-        setError('Especialidades no válidas');
+        setError(t('technicians.validation.invalidSpecialties'));
         setSaving(false);
         return;
       }
@@ -252,14 +254,14 @@ export default function UpkeepTechnician() {
       if (isEditing) {
         technicianData.idTechnician = parseInt(formData.idTechnician);
         await TechnicianService.updateTechnician(technicianData);
-        navigate('/technicians', { state: { notification: { message: 'Técnico actualizado correctamente', type: 'success' } } });
+        navigate('/technicians', { state: { notification: { message: t('technicians.messages.updateSuccess'), type: 'success' } } });
       } else {
         await TechnicianService.createTechnician(technicianData);
-        navigate('/technicians', { state: { notification: { message: 'Técnico creado correctamente', type: 'success' } } });
+        navigate('/technicians', { state: { notification: { message: t('technicians.messages.createSuccess'), type: 'success' } } });
       }
     } catch (err) {
       console.error('Error al guardar técnico:', err);
-      setError(err.response?.data?.message || 'Error al guardar el técnico');
+      setError(err.response?.data?.message || t('technicians.messages.saveError'));
       setSaving(false);
     }
   };
@@ -273,7 +275,7 @@ export default function UpkeepTechnician() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-muted-foreground">Cargando formulario...</p>
+          <p className="mt-4 text-muted-foreground">{t('technicians.loadingForm')}</p>
         </div>
       </div>
     );
@@ -289,17 +291,17 @@ export default function UpkeepTechnician() {
             </div>
             <div className="flex-1">
               <CardTitle className="text-2xl">
-                {isEditing ? 'Editar Técnico' : 'Crear Nuevo Técnico'}
+                {isEditing ? t('technicians.editTechnician') : t('technicians.createTechnician')}
               </CardTitle>
               <CardDescription>
                 {isEditing 
-                  ? 'Actualiza la información del técnico existente'
-                  : 'Complete el formulario para registrar un nuevo técnico en el sistema'
+                  ? t('technicians.form.editDescription')
+                  : t('technicians.form.createDescription')
                 }
               </CardDescription>
             </div>
             <Badge variant={isEditing ? "secondary" : "default"}>
-              {isEditing ? `ID: ${id}` : 'Nuevo'}
+              {isEditing ? `ID: ${id}` : t('common.new')}
             </Badge>
           </div>
         </CardHeader>
@@ -318,13 +320,13 @@ export default function UpkeepTechnician() {
             <div className="space-y-2">
               <Label htmlFor="username" className="flex items-center gap-2">
                 <User className="h-4 w-4" />
-                Nombre de Usuario
+                {t('technicians.fields.username')}
                 <span className="text-red-500">*</span>
               </Label>
               <input
                 type="text"
                 id="username"
-                placeholder="Nombre del técnico"
+                placeholder={t('technicians.placeholders.username')}
                 value={formData.Username}
                 onChange={(e) => handleInputChange('Username', e.target.value)}
                 disabled={saving}
@@ -336,13 +338,13 @@ export default function UpkeepTechnician() {
             <div className="space-y-2">
               <Label htmlFor="email" className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
-                Correo Electrónico
+                {t('technicians.fields.email')}
                 <span className="text-red-500">*</span>
               </Label>
               <input
                 type="email"
                 id="email"
-                placeholder="correo@ejemplo.com"
+                placeholder={t('technicians.placeholders.email')}
                 value={formData.Email}
                 onChange={(e) => handleInputChange('Email', e.target.value)}
                 disabled={saving}
@@ -355,7 +357,7 @@ export default function UpkeepTechnician() {
               <div className="flex items-center justify-between">
                 <Label className="flex items-center gap-2">
                   <User className="h-4 w-4" />
-                  Estilo de Avatar
+                  {t('technicians.fields.avatarStyle')}
                 </Label>
                 <Button
                   type="button"
@@ -369,7 +371,7 @@ export default function UpkeepTechnician() {
                   disabled={saving}
                 >
                   <RefreshCw className="h-3 w-3" />
-                  Actualizar
+                  {t('common.refresh')}
                 </Button>
               </div>
               <div className="flex gap-3 items-center flex-wrap justify-center">
@@ -403,7 +405,7 @@ export default function UpkeepTechnician() {
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Briefcase className="h-4 w-4" />
-                Especialidades Requeridas
+                {t('technicians.fields.specialtiesRequired')}
                 <span className="text-red-500">*</span>
               </Label>
               
@@ -431,7 +433,7 @@ export default function UpkeepTechnician() {
                         disabled={saving || getAvailableSpecialtiesFiltered().length === 0}
                       >
                         <Plus className="w-4 h-4" />
-                        Agregar Especialidad
+                        {t('technicians.form.addSpecialty')}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-80 p-0" align="center" side="bottom" sideOffset={4}>
@@ -461,13 +463,13 @@ export default function UpkeepTechnician() {
             <div className="space-y-2">
               <Label htmlFor="password" className="flex items-center gap-2">
                 <Key className="h-4 w-4" />
-                {isEditing ? 'Nueva Contraseña (opcional)' : 'Contraseña'}
+                {isEditing ? t('technicians.fields.newPassword') : t('technicians.fields.password')}
                 {!isEditing && <span className="text-red-500">*</span>}
               </Label>
               <input
                 type="password"
                 id="password"
-                placeholder={isEditing ? 'Dejar en blanco para mantener actual' : 'Mínimo 6 caracteres'}
+                placeholder={isEditing ? t('technicians.placeholders.passwordOptional') : t('technicians.placeholders.password')}
                 value={formData.Password}
                 onChange={(e) => handleInputChange('Password', e.target.value)}
                 disabled={saving}
@@ -480,13 +482,13 @@ export default function UpkeepTechnician() {
               <div className="space-y-2">
                 <Label htmlFor="confirmpassword" className="flex items-center gap-2">
                   <Key className="h-4 w-4" />
-                  Confirmar Contraseña
+                  {t('technicians.fields.confirmPassword')}
                   <span className="text-red-500">*</span>
                 </Label>
                 <input
                   type="password"
                   id="confirmpassword"
-                  placeholder="Confirme la contraseña"
+                  placeholder={t('technicians.placeholders.confirmPassword')}
                   value={formData.ConfirmPassword}
                   onChange={(e) => handleInputChange('ConfirmPassword', e.target.value)}
                   disabled={saving}
@@ -506,7 +508,7 @@ export default function UpkeepTechnician() {
                 disabled={saving}
               >
                 <X className="h-4 w-4 mr-2" />
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -515,12 +517,12 @@ export default function UpkeepTechnician() {
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Guardando...
+                    {t('common.saving')}
                   </>
                 ) : (
                   <>
                     <Save className="h-4 w-4 mr-2" />
-                    {isEditing ? 'Actualizar Técnico' : 'Crear Técnico'}
+                    {isEditing ? t('technicians.form.updateButton') : t('technicians.form.createButton')}
                   </>
                 )}
               </Button>

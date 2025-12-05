@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ export default function StateUpdateDialog({
   onSubmit,
   loading,
 }) {
+  const { t } = useTranslation();
   const [comment, setComment] = useState('');
   const [evidence, setEvidence] = useState(null);
   const [evidencePreview, setEvidencePreview] = useState(null);
@@ -49,50 +51,50 @@ export default function StateUpdateDialog({
     switch (currentStateId) {
       case 2: // Asignado → Responder (En Proceso)
         return {
-          title: 'Responder Ticket',
-          description: `Responder al ticket #${ticket?.idTicket}: "${ticket?.Title}"`,
+          title: t('tickets.stateUpdate.respond.title'),
+          description: t('tickets.stateUpdate.respond.description', { id: ticket?.idTicket, title: ticket?.Title }),
           icon: MessageSquare,
           iconColor: 'text-accent',
-          textLabel: 'Respuesta',
-          textPlaceholder: 'Escribe tu respuesta al ticket...',
-          buttonText: 'Responder',
-          buttonLoadingText: 'Respondiendo...',
+          textLabel: t('tickets.stateUpdate.respond.textLabel'),
+          textPlaceholder: t('tickets.stateUpdate.respond.textPlaceholder'),
+          buttonText: t('tickets.stateUpdate.respond.buttonText'),
+          buttonLoadingText: t('tickets.stateUpdate.respond.buttonLoadingText'),
         };
       case 3: // En Proceso → Resolver
         return {
-          title: 'Resolver Ticket',
-          description: `Marcar como resuelto el ticket #${ticket?.idTicket}: "${ticket?.Title}"`,
+          title: t('tickets.stateUpdate.resolve.title'),
+          description: t('tickets.stateUpdate.resolve.description', { id: ticket?.idTicket, title: ticket?.Title }),
           icon: CheckCircle,
           iconColor: 'text-green-500',
-          textLabel: 'Solución',
-          textPlaceholder: 'Describe la solución aplicada al problema...',
-          buttonText: 'Marcar como Resuelto',
-          buttonLoadingText: 'Resolviendo...',
+          textLabel: t('tickets.stateUpdate.resolve.textLabel'),
+          textPlaceholder: t('tickets.stateUpdate.resolve.textPlaceholder'),
+          buttonText: t('tickets.stateUpdate.resolve.buttonText'),
+          buttonLoadingText: t('tickets.stateUpdate.resolve.buttonLoadingText'),
         };
       case 4: // Resuelto → Cerrar
         return {
-          title: 'Cerrar Ticket',
-          description: `Cerrar definitivamente el ticket #${ticket?.idTicket}: "${ticket?.Title}"`,
+          title: t('tickets.stateUpdate.close.title'),
+          description: t('tickets.stateUpdate.close.description', { id: ticket?.idTicket, title: ticket?.Title }),
           icon: XCircle,
           iconColor: 'text-primary',
-          textLabel: 'Comentario de cierre',
-          textPlaceholder: 'Agrega un comentario sobre el cierre del ticket...',
-          buttonText: 'Cerrar Ticket',
-          buttonLoadingText: 'Cerrando...',
+          textLabel: t('tickets.stateUpdate.close.textLabel'),
+          textPlaceholder: t('tickets.stateUpdate.close.textPlaceholder'),
+          buttonText: t('tickets.stateUpdate.close.buttonText'),
+          buttonLoadingText: t('tickets.stateUpdate.close.buttonLoadingText'),
         };
       default:
         return {
-          title: 'Actualizar Estado',
-          description: `Actualizar el ticket #${ticket?.idTicket}`,
+          title: t('tickets.stateUpdate.default.title'),
+          description: t('tickets.stateUpdate.default.description', { id: ticket?.idTicket }),
           icon: MessageSquare,
           iconColor: 'text-muted-foreground',
-          textLabel: 'Comentario',
-          textPlaceholder: 'Describe brevemente el motivo del cambio...',
-          buttonText: 'Confirmar',
-          buttonLoadingText: 'Actualizando...',
+          textLabel: t('tickets.stateUpdate.default.textLabel'),
+          textPlaceholder: t('tickets.stateUpdate.default.textPlaceholder'),
+          buttonText: t('tickets.stateUpdate.default.buttonText'),
+          buttonLoadingText: t('tickets.stateUpdate.default.buttonLoadingText'),
         };
     }
-  }, [ticket]);
+  }, [ticket, t]);
 
   useEffect(() => {
     setComment('');
@@ -106,12 +108,12 @@ export default function StateUpdateDialog({
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      setFileError('Solo se permiten archivos de imagen.');
+      setFileError(t('tickets.stateUpdate.onlyImagesAllowed'));
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setFileError('La imagen no debe superar los 5MB.');
+      setFileError(t('tickets.stateUpdate.imageSizeLimit'));
       return;
     }
 
@@ -167,7 +169,7 @@ export default function StateUpdateDialog({
                 <DialogDescription className="text-muted-foreground">
                   {nextState
                     ? dialogConfig.description
-                    : 'No hay transiciones disponibles para este ticket.'}
+                    : t('tickets.stateUpdate.noTransitions')}
                 </DialogDescription>
               </div>
             </div>
@@ -191,7 +193,7 @@ export default function StateUpdateDialog({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-card-foreground">Imagen (opcional)</Label>
+            <Label className="text-card-foreground">{t('tickets.stateUpdate.imageOptional')}</Label>
             {!evidencePreview ? (
               <div className="space-y-2">
                 <input
@@ -208,7 +210,7 @@ export default function StateUpdateDialog({
               <div className="relative inline-block">
                 <img
                   src={evidencePreview}
-                  alt="Vista previa evidencia"
+                  alt={t('tickets.stateUpdate.evidencePreview')}
                   className="h-24 w-auto rounded-md object-cover border border-border"
                 />
                 <Button
@@ -227,7 +229,7 @@ export default function StateUpdateDialog({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-              Cancelar
+              {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={!nextState?.idState || !comment.trim() || loading}>
               {loading ? dialogConfig.buttonLoadingText : dialogConfig.buttonText}

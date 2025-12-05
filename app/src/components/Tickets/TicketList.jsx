@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   Clock, 
   User, 
@@ -17,11 +18,13 @@ import {
   Edit3,
   Search,
   X,
+  Zap,
 } from 'lucide-react';
 import { useRole } from '@/hooks/use-role';
 import { useUser } from '@/context/UserContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useNotification } from '@/context/NotificationContext';
+import { useSystemNotifications } from '@/context/SystemNotificationContext';
 import TicketService from '@/services/TicketService';
 import TechnicianService from '@/services/TechnicianService';
 import StateService from '@/services/StateService';
@@ -29,6 +32,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { getTechnicianAvatarUrl, getTechnicianInitials } from '@/hooks/use-avatar';
 import { StateProgress } from '@/components/ui/state-progress';
 import { Button } from '@/components/ui/button';
 import {
@@ -72,15 +76,6 @@ const formatSlaTime = (dateString) => formatUtcToLocalTime(dateString);
 
 const formatSlaDate = (dateString) => formatUtcToLocalDate(dateString);
 
-const getTechnicianInitials = (name = '') => {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('') || '—';
-};
-
 const formatDateTimeForDB = (value) => {
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) {
@@ -94,11 +89,13 @@ const formatDateTimeForDB = (value) => {
 };
 
 export default function TicketList() {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const { role, isLoadingRole } = useRole();
   const { currentUser, technicianProfile, isTechnicianLoading } = useUser();
   const { showNotification } = useNotification();
+  const { refresh: refreshSystemNotifications } = useSystemNotifications();
   const technicianId = technicianProfile?.idTechnician;
   const technicianNumericId = Number(technicianId);
   const currentUserId = currentUser?.idUser;
@@ -120,6 +117,7 @@ export default function TicketList() {
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [reviewDialogTicket, setReviewDialogTicket] = useState(null);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [isBulkAssigning, setIsBulkAssigning] = useState(false);
   const canCreateTickets = !isLoadingRole && (role === 2 || role === 3);
   const isAdmin = role === 3;
 
@@ -159,7 +157,7 @@ export default function TicketList() {
           setStates(response.data.data || []);
         }
       } catch (stateError) {
-        console.error('Error al cargar estados:', stateError);
+        console.error('Error loading states:', stateError);
       }
     };
 
@@ -264,13 +262,13 @@ export default function TicketList() {
           setTechnicians(responses[1].data.data);
         }
       } else {
-        setError('Error al cargar los tickets');
+        setError(t('tickets.messages.loadError'));
       }
     } catch (err) {
       console.error('Error loading tickets:', err);
       console.error('Error details:', err.message);
       console.error('Error stack:', err.stack);
-      setError('Error al conectar con el servidor');
+      setError(t('errors.networkError'));
     } finally {
       setLoading(false);
     }
@@ -357,7 +355,7 @@ export default function TicketList() {
   const openStateDialog = (ticket) => {
     const allowedStates = getAllowedStatesForTicket(ticket);
     if (allowedStates.length === 0) {
-      showNotification('No hay cambios de estado disponibles para este ticket', 'warning');
+      showNotification(t('tickets.stateUpdate.noChangesAvailable'), 'warning');
       return;
     }
 
@@ -372,7 +370,7 @@ export default function TicketList() {
 
   const handleAssignment = async (assignmentData) => {
     if (!assignDialogTicket || !currentUser?.idUser) {
-      showNotification('Error al procesar la asignación', 'error');
+      showNotification(t('tickets.assignment.assignError'), 'error');
       return;
     }
 
@@ -383,17 +381,21 @@ export default function TicketList() {
         StateObservation: assignmentData.observation,
         idUser: Number(currentUser.idUser),
         DateOfAssign: formatDateTimeForDB(),
-        idTechnician: assignmentData.technicianId, // Siempre incluir el técnico
-        PriorityScore: assignmentData.priorityScore, // Puntaje de prioridad
+        idTechnician: assignmentData.technicianId,
+        PriorityScore: assignmentData.priorityScore,
       };
+
+      // Si es asignación automática, incluir el idWorkFlowRules
+      if (assignmentData.method === 'automatic' && assignmentData.idWorkFlowRules) {
+        payload.idWorkFlowRules = assignmentData.idWorkFlowRules;
+      }
 
       if (assignmentData.evidence) {
         payload.StateImages = [assignmentData.evidence];
       }
 
-      const response = assignmentData.method === 'manual'
-        ? await AssignService.createAssignment(payload)
-        : await AssignService.autoAssign(payload);
+      // Usar siempre createAssignment ya que ahora incluimos el técnico desde el auto-triage
+      const response = await AssignService.createAssignment(payload);
 
       if (response.data?.success) {
         const updatedTicket = response.data.data;
@@ -415,19 +417,223 @@ export default function TicketList() {
           }
         }
         
-        showNotification('Ticket asignado exitosamente', 'success');
+        // Refrescar notificaciones del sistema inmediatamente
+        refreshSystemNotifications();
+        
+        showNotification(t('tickets.assignment.assignSuccess'), 'success');
         setIsAssignDialogOpen(false);
       } else {
-        throw new Error('Respuesta inválida del servidor');
+        throw new Error('Invalid server response');
       }
     } catch (error) {
-      console.error('Error al asignar ticket:', error);
+      console.error('Error assigning ticket:', error);
       setIsAssignDialogOpen(false);
-      showNotification('No se pudo asignar el ticket', 'error');
+      showNotification(t('tickets.assignment.assignError'), 'error');
     } finally {
       setIsAssigning(false);
     }
   };
+
+  /**
+   * Función para ejecutar auto-triage en un ticket específico
+   * Retorna el técnico adecuado y la regla aplicada, o null si no hay match
+   */
+  const executeAutoTriageForTicket = async (ticket, rules, availableTechs) => {
+    const ticketCategoryId = Number(ticket.idCategory);
+    const requiredSpecialtyIds = ticket.CategoryData?.SpecialtyIds || [];
+    const hasSpecialtyRequirements = Array.isArray(requiredSpecialtyIds) && requiredSpecialtyIds.length > 0;
+
+    // Filtrar técnicos disponibles para este ticket
+    const filteredTechs = availableTechs.filter((tech) => {
+      const workload = parseInt(tech.WorkLoad || 0);
+      if (workload >= 5) return false;
+
+      if (hasSpecialtyRequirements) {
+        const techSpecialtyIds = tech.SpecialtyIds || [];
+        const requirements = requiredSpecialtyIds.map((id) => Number(id));
+        return requirements.some((reqId) =>
+          techSpecialtyIds.some((techId) => Number(techId) === reqId)
+        );
+      }
+      return true;
+    });
+
+    if (filteredTechs.length === 0) return null;
+
+    // Iterar por las reglas en orden de prioridad
+    for (const rule of rules) {
+      const ruleCategory = rule.idCategory ? Number(rule.idCategory) : null;
+      const ruleSpecialty = rule.idSpecialty ? Number(rule.idSpecialty) : null;
+      const ruleWorkLoad = rule.WorkLoad !== null ? Number(rule.WorkLoad) : null;
+
+      if (ruleCategory !== null && ruleCategory !== ticketCategoryId) {
+        continue;
+      }
+
+      for (const tech of filteredTechs) {
+        const techWorkLoad = parseInt(tech.WorkLoad || 0);
+        const techSpecialtyIds = (tech.SpecialtyIds || []).map(id => Number(id));
+
+        if (ruleWorkLoad !== null && techWorkLoad > ruleWorkLoad) {
+          continue;
+        }
+
+        if (ruleSpecialty !== null && !techSpecialtyIds.includes(ruleSpecialty)) {
+          continue;
+        }
+
+        if (hasSpecialtyRequirements) {
+          const reqIds = requiredSpecialtyIds.map(id => Number(id));
+          const hasRequired = reqIds.some(reqId => techSpecialtyIds.includes(reqId));
+          if (!hasRequired) {
+            continue;
+          }
+        }
+
+        return { technician: tech, rule: rule };
+      }
+    }
+
+    return null;
+  };
+
+  /**
+   * Asignación automática masiva de todos los tickets pendientes
+   */
+  const handleBulkAutoAssign = async () => {
+    if (!currentUser?.idUser) {
+      showNotification(t('errors.unauthorized'), 'error');
+      return;
+    }
+
+    // Filtrar tickets pendientes (idState = 1)
+    const pendingTickets = tickets.filter(ticket => Number(ticket.idState) === 1);
+
+    if (pendingTickets.length === 0) {
+      showNotification(t('tickets.bulkAssign.noPendingTickets'), 'info');
+      return;
+    }
+
+    setIsBulkAssigning(true);
+    let successCount = 0;
+    let errorCount = 0;
+    let skippedCount = 0;
+
+    try {
+      // Obtener reglas de workflow
+      const rulesResponse = await AssignService.getWorkFlowRules();
+      if (!rulesResponse.data?.success || !rulesResponse.data?.data) {
+        showNotification(t('tickets.bulkAssign.rulesError'), 'error');
+        setIsBulkAssigning(false);
+        return;
+      }
+
+      const rules = rulesResponse.data.data;
+      
+      // Obtener técnicos actualizados
+      const techResponse = await TechnicianService.getTechnicians();
+      if (!techResponse.data?.success) {
+        showNotification(t('tickets.bulkAssign.techniciansError'), 'error');
+        setIsBulkAssigning(false);
+        return;
+      }
+
+      let currentTechnicians = techResponse.data.data;
+
+      // Procesar cada ticket pendiente
+      for (const ticket of pendingTickets) {
+        try {
+          const triageResult = await executeAutoTriageForTicket(ticket, rules, currentTechnicians);
+
+          if (!triageResult) {
+            skippedCount++;
+            continue;
+          }
+
+          const basePriority = ticket.idPriority || 2;
+          const slaHoursRemaining = ticket.SLA?.ResolutionHoursRemaining || 0;
+          const priorityScore = Math.round((basePriority * 1000) - slaHoursRemaining);
+
+          const payload = {
+            idTicket: ticket.idTicket,
+            StateObservation: t('tickets.bulkAssign.autoAssignmentObservation', { 
+              ruleId: triageResult.rule?.idWorkFlowRules 
+            }),
+            idUser: Number(currentUser.idUser),
+            DateOfAssign: formatDateTimeForDB(),
+            idTechnician: triageResult.technician.idTechnician,
+            PriorityScore: priorityScore,
+            idWorkFlowRules: triageResult.rule?.idWorkFlowRules,
+          };
+
+          const response = await AssignService.createAssignment(payload);
+
+          if (response.data?.success) {
+            successCount++;
+            // Actualizar workload local del técnico asignado
+            currentTechnicians = currentTechnicians.map(tech => {
+              if (tech.idTechnician === triageResult.technician.idTechnician) {
+                return { ...tech, WorkLoad: (parseInt(tech.WorkLoad || 0) + 1).toString() };
+              }
+              return tech;
+            });
+          } else {
+            errorCount++;
+          }
+        } catch (ticketError) {
+          console.error(`Error asignando ticket ${ticket.idTicket}:`, ticketError);
+          errorCount++;
+        }
+      }
+
+      // Recargar datos
+      await loadTickets();
+      
+      // Actualizar lista de técnicos
+      if (role === 3) {
+        try {
+          const updatedTechResponse = await TechnicianService.getTechnicians();
+          if (updatedTechResponse.data?.success) {
+            setTechnicians(updatedTechResponse.data.data);
+          }
+        } catch (techError) {
+          console.error('Error al recargar técnicos:', techError);
+        }
+      }
+
+      // Refrescar notificaciones del sistema
+      refreshSystemNotifications();
+
+      // Mostrar resultado
+      if (successCount > 0 && errorCount === 0 && skippedCount === 0) {
+        showNotification(t('tickets.bulkAssign.allSuccess', { count: successCount }), 'success');
+      } else if (successCount > 0) {
+        showNotification(
+          t('tickets.bulkAssign.partialSuccess', { 
+            success: successCount, 
+            skipped: skippedCount, 
+            errors: errorCount 
+          }), 
+          'warning'
+        );
+      } else if (skippedCount > 0) {
+        showNotification(t('tickets.bulkAssign.noMatchingTechnicians'), 'warning');
+      } else {
+        showNotification(t('tickets.bulkAssign.allFailed'), 'error');
+      }
+
+    } catch (error) {
+      console.error('Error en asignación masiva:', error);
+      showNotification(t('tickets.bulkAssign.error'), 'error');
+    } finally {
+      setIsBulkAssigning(false);
+    }
+  };
+
+  // Contar tickets pendientes para mostrar en el botón
+  const pendingTicketsCount = useMemo(() => {
+    return tickets.filter(ticket => Number(ticket.idState) === 1).length;
+  }, [tickets]);
 
   const handleStateUpdate = async ({ stateId, comment, image }) => {
     if (!stateDialogTicket || !stateId || !comment.trim()) {
@@ -435,7 +641,7 @@ export default function TicketList() {
     }
 
     if (!currentUser?.idUser) {
-      showNotification('No se pudo identificar al usuario actual', 'error');
+      showNotification(t('errors.unauthorized'), 'error');
       return;
     }
 
@@ -466,15 +672,18 @@ export default function TicketList() {
           loadTickets();
         }
         
-        showNotification('Estado actualizado correctamente', 'success');
+        // Refrescar notificaciones del sistema inmediatamente
+        refreshSystemNotifications();
+        
+        showNotification(t('tickets.stateUpdate.updateSuccess'), 'success');
         setIsStateDialogOpen(false);
       } else {
-        throw new Error('Respuesta inválida del servidor');
+        throw new Error('Invalid server response');
       }
     } catch (updateError) {
-      console.error('Error al actualizar estado:', updateError);
+      console.error('Error updating state:', updateError);
       setIsStateDialogOpen(false);
-      showNotification('No se pudo actualizar el estado del ticket', 'error');
+      showNotification(t('tickets.stateUpdate.updateError'), 'error');
     } finally {
       setIsUpdatingState(false);
     }
@@ -509,15 +718,15 @@ export default function TicketList() {
         } else {
           loadTickets();
         }
-        showNotification('Valoración enviada correctamente', 'success');
+        showNotification(t('tickets.review.reviewSuccess'), 'success');
         setIsReviewDialogOpen(false);
       } else {
-        throw new Error('Respuesta inválida del servidor');
+        throw new Error('Invalid server response');
       }
     } catch (reviewError) {
-      console.error('Error al enviar valoración:', reviewError);
+      console.error('Error sending review:', reviewError);
       setIsReviewDialogOpen(false);
-      showNotification('No se pudo enviar la valoración', 'error');
+      showNotification(t('tickets.review.reviewError'), 'error');
     } finally {
       setIsSubmittingReview(false);
     }
@@ -582,13 +791,13 @@ export default function TicketList() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
             {role === 1 
-              ? 'Mis Tickets Asignados' 
-              : 'Todos los Tickets'}
+              ? t('tickets.assignedTickets') 
+              : t('tickets.allTickets')}
           </h1>
           <p className="text-muted-foreground mt-1">
             {role === 1 
-              ? 'Tickets asignados a ti' 
-              : 'Gestiona y visualiza todos los tickets del sistema'}
+              ? t('sidebar.descriptions.assignedTickets') 
+              : t('sidebar.descriptions.tickets')}
           </p>
         </div>
 
@@ -599,7 +808,7 @@ export default function TicketList() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Buscar por #ID, título, cliente, técnico, estado..."
+              placeholder={t('tickets.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 pr-9"
@@ -619,18 +828,40 @@ export default function TicketList() {
 
           {/* Botón Crear Ticket y contador */}
           <div className="flex items-center gap-3">
+            {/* Botón de Asignación Automática Masiva - Solo Admin */}
+            {isAdmin && pendingTicketsCount > 0 && (
+              <Button
+                onClick={handleBulkAutoAssign}
+                disabled={isBulkAssigning}
+                variant="outline"
+                className="gap-2 border-accent/50 text-accent hover:bg-accent/10 hover:text-accent"
+              >
+                {isBulkAssigning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {t('tickets.bulkAssign.assigning')}
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4" />
+                    {t('tickets.bulkAssign.button', { count: pendingTicketsCount })}
+                  </>
+                )}
+              </Button>
+            )}
+
             {canCreateTickets && (
               <Button
                 onClick={() => navigate('/tickets/create')}
                 className="gap-2"
               >
                 <Plus className="w-4 h-4" />
-                Nuevo Ticket
+                {t('tickets.newTicket')}
               </Button>
             )}
             
             <Badge variant="outline" className="text-sm px-4 py-2">
-              {tickets.length === 1 ? '1 Ticket en total' : `${tickets.length} Tickets en total`}
+              {t('tickets.totalCount', { count: tickets.length })}
             </Badge>
           </div>
         </div>
@@ -658,15 +889,15 @@ export default function TicketList() {
           <Card className="p-8">
             <div className="text-center space-y-3">
               <Search className="w-12 h-12 text-muted-foreground mx-auto" />
-              <h3 className="text-lg font-semibold">No se encontraron tickets</h3>
+              <h3 className="text-lg font-semibold">{t('tickets.noTickets')}</h3>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
                 {searchQuery 
-                  ? `No hay tickets que coincidan con "${searchQuery}". Intenta con otros términos.`
-                  : 'No hay tickets disponibles con los filtros actuales.'}
+                  ? t('tickets.noTicketsDesc')
+                  : t('tickets.noTicketsAvailable')}
               </p>
               {searchQuery && (
                 <Button variant="outline" size="sm" onClick={() => setSearchQuery('')}>
-                  Limpiar búsqueda
+                  {t('tickets.clearSearch')}
                 </Button>
               )}
             </div>
@@ -719,9 +950,9 @@ export default function TicketList() {
                                 }`}
                               >
                                 <Clock className="w-3 h-3 mr-1" />
-                                Resp: {(() => {
+                                {t('tickets.sla.response')}: {(() => {
                                   const hoursRemaining = ticket.SLA.ResponseHoursRemaining;
-                                  return hoursRemaining <= 0 ? 'Vencida' : `${hoursRemaining}h`;
+                                  return hoursRemaining <= 0 ? t('tickets.sla.expired') : `${hoursRemaining}h`;
                                 })()}
                               </Badge>
                             )}
@@ -739,9 +970,9 @@ export default function TicketList() {
                                 }`}
                               >
                                 <Clock className="w-3 h-3 mr-1" />
-                                Resol: {(() => {
+                                {t('tickets.sla.resolution')}: {(() => {
                                   const hoursRemaining = ticket.SLA.ResolutionHoursRemaining;
-                                  return hoursRemaining <= 0 ? 'Vencida' : `${hoursRemaining}h`;
+                                  return hoursRemaining <= 0 ? t('tickets.sla.expired') : `${hoursRemaining}h`;
                                 })()}
                               </Badge>
                             )}
@@ -795,10 +1026,10 @@ export default function TicketList() {
                         onClick={() => openAssignDialog(ticket)}
                       >
                         <UserCheck className="w-4 h-4" />
-                        Asignar Técnico
+                        {t('tickets.actions.assignTechnician')}
                       </Button>
                       <p className="text-xs text-muted-foreground">
-                        Asigna este ticket a un técnico disponible.
+                        {t('tickets.actions.assignTechnicianDesc')}
                       </p>
                     </div>
                   )}
@@ -817,10 +1048,10 @@ export default function TicketList() {
                             onClick={() => openStateDialog(ticket)}
                           >
                             <Edit3 className="w-4 h-4" />
-                            Responder ticket
+                            {t('tickets.actions.respondTicket')}
                           </Button>
                           <p className="text-xs text-muted-foreground">
-                            Se cambiará automáticamente a "En Proceso".
+                            {t('tickets.actions.respondTicketDesc')}
                           </p>
                         </div>
                       );
@@ -835,10 +1066,10 @@ export default function TicketList() {
                             onClick={() => openStateDialog(ticket)}
                           >
                             <Edit3 className="w-4 h-4" />
-                            Marcar como resuelto
+                            {t('tickets.actions.markResolved')}
                           </Button>
                           <p className="text-xs text-muted-foreground">
-                            Requiere comentario y admite evidencia opcional.
+                            {t('tickets.actions.requiresComment')}
                           </p>
                         </div>
                       );
@@ -853,10 +1084,10 @@ export default function TicketList() {
                             onClick={() => openStateDialog(ticket)}
                           >
                             <Edit3 className="w-4 h-4" />
-                            Cerrar ticket
+                            {t('tickets.actions.closeTicket')}
                           </Button>
                           <p className="text-xs text-muted-foreground">
-                            Requiere comentario y admite evidencia opcional.
+                            {t('tickets.actions.requiresComment')}
                           </p>
                         </div>
                       );
@@ -869,7 +1100,7 @@ export default function TicketList() {
                   <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
                     <h4 className="font-semibold flex items-center gap-2 mb-3">
                       <MessageSquare className="w-4 h-4" />
-                      Descripción
+                      {t('common.description')}
                     </h4>
                     <p className="text-sm text-muted-foreground leading-relaxed">
                       {ticket.Description}
@@ -884,7 +1115,7 @@ export default function TicketList() {
                         <CardHeader className="pb-3">
                           <h4 className="font-semibold flex items-center gap-2 text-sm">
                             <User className="w-4 h-4" />
-                            Técnico Asignado
+                            {t('tickets.details.technician')}
                           </h4>
                         </CardHeader>
                         <CardContent>
@@ -893,7 +1124,7 @@ export default function TicketList() {
                             <div className="flex items-start gap-3 flex-1">
                               <Avatar className="flex-shrink-0">
                                 <AvatarImage 
-                                  src={`https://api.dicebear.com/7.x/${ticket.Assign.Technician.AvatarStyle || 'avataaars'}/svg?seed=${ticket.Assign.Technician.AvatarSeed || ticket.Assign.Technician.Username}`}
+                                  src={getTechnicianAvatarUrl(ticket.Assign.Technician)}
                                   alt={ticket.Assign.Technician.Username}
                                 />
                                 <AvatarFallback className="bg-accent text-accent-foreground">
@@ -909,7 +1140,7 @@ export default function TicketList() {
                             {/* Información de asignación */}
                             <div className="flex-1 space-y-2 border-l pl-3">
                               <div className="flex items-center justify-between text-xs">
-                                <span className="text-muted-foreground">Asignado:</span>
+                                <span className="text-muted-foreground">{t('tickets.details.assigned')}:</span>
                                 <div className="text-right">
                                   <p className="font-medium">
                                     <strong>{ticket.Assign.DateOfAssign 
@@ -923,16 +1154,16 @@ export default function TicketList() {
                               </div>
                               
                               <div className="flex items-center justify-between text-xs">
-                                <span className="text-muted-foreground">Método:</span>
+                                <span className="text-muted-foreground">{t('tickets.details.method')}:</span>
                                 <Badge variant="outline" className="text-xs">
-                                  {ticket.Assign.WorkFlowRules === 'Manual' ? 'Manual' : 'Automático'}
+                                  {ticket.Assign.WorkFlowRules === 'Manual' ? t('tickets.assignment.manual') : t('tickets.assignment.automatic')}
                                 </Badge>
                               </div>
                             </div>
                           </div>
                           
                           <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
-                            Responsable del seguimiento del ticket.
+                            {t('tickets.details.technicianResponsible')}
                           </p>
                         </CardContent>
                       </Card>
@@ -941,22 +1172,22 @@ export default function TicketList() {
                     {/* Stats Summary */}
                     <Card className="border-border/50 bg-muted/20">
                       <CardHeader className="pb-3">
-                        <h4 className="font-semibold text-sm">Estadísticas</h4>
+                        <h4 className="font-semibold text-sm">{t('tickets.details.statistics')}</h4>
                       </CardHeader>
                       <CardContent>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="text-center p-2 rounded-lg bg-background/50">
                             <p className="text-xl font-bold text-primary pt-2">{ticket.StateRecords?.length || 0}</p>
-                            <p className="text-[10px] text-muted-foreground">Cambios</p>
+                            <p className="text-[10px] text-muted-foreground">{t('tickets.details.changes')}</p>
                           </div>
                           {ticket.SLA && (
                             <>
                               {/* Respuesta - siempre visible, con etiqueta "Respondido" si ya pasó */}
                               <div className="text-center p-2 rounded-lg bg-background/50">
                                 <p className="text-xs font-semibold text-primary mb-1 flex items-center justify-center gap-1">
-                                  Respuesta
+                                  {t('tickets.details.responseTime')}
                                   {Number(ticket.idState) >= 3 && (
-                                    <span className="text-[9px] font-normal text-primary">(Respondido)</span>
+                                    <span className="text-[9px] font-normal text-primary">({t('tickets.details.responded')})</span>
                                   )}
                                 </p>
                                 <p className={`text-lg font-bold text-muted-foreground}`}>
@@ -969,9 +1200,9 @@ export default function TicketList() {
                               {/* Resolución - siempre visible, con etiqueta "Resuelto" si ya pasó */}
                               <div className="text-center p-2 rounded-lg bg-background/50">
                                 <p className="text-xs font-semibold text-primary mb-1 flex items-center justify-center gap-1">
-                                  Resolución
+                                  {t('tickets.details.resolutionTime')}
                                   {Number(ticket.idState) >= 4 && (
-                                    <span className="text-[9px] font-normal text-primary">(Resuelto)</span>
+                                    <span className="text-[9px] font-normal text-primary">({t('tickets.states.resolved')})</span>
                                   )}
                                 </p>
                                 <p className={`text-lg font-bold text-muted-foreground}`}>
@@ -993,63 +1224,105 @@ export default function TicketList() {
                     <CardHeader className="pb-3">
                       <h4 className="font-semibold flex items-center gap-2 text-sm">
                         <Clock className="w-4 h-4" />
-                        Historial de Estados
+                        {t('tickets.details.timeline')}
                       </h4>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
-                        {ticket.StateRecords?.map((record) => {
-                          const StateIcon = getStateIcon(record.State).icon;
-                          const iconColor = getStateIcon(record.State).color;
-                          return (
-                            <div 
-                              key={record.idStateRecord}
-                              className="flex items-start gap-3 p-3 rounded-lg bg-background/50 border border-border/50"
-                            >
-                              <div className={`p-1.5 rounded-full ${iconColor}`}>
-                                <StateIcon className="w-4 h-4" />
-                              </div>
-                              <div className="flex-1 space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <span className="font-medium text-sm">{record.State}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {formatUtcToLocalDateTime(record.DateOfChange, { includeSeconds: true })}
-                                  </span>
-                                </div>
-                              <p className="text-xs text-muted-foreground">{record.Observation}</p>
-                              {record.Images?.length > 0 && (
-                                <div className="mt-2 space-y-2">
-                                  <div className="flex items-center gap-1 text-xs text-primary">
-                                    <ImageIcon className="w-3 h-3" />
-                                    <span>{record.Images.length} imagen(es)</span>
-                                  </div>
-                                  <div className="flex gap-2 flex-wrap">
-                                    {record.Images.filter(img => img.ImageBase64 || img.ImagePath).map((img) => {
-                                      const imgSrc = img.ImageBase64 
-                                        ? `data:image/jpeg;base64,${img.ImageBase64}`
-                                        : `http://localhost/Vault-Tec-Desk/api/${img.ImagePath}`;
-                                      return (
-                                        <img
-                                          key={`img-${record.idStateRecord}-${img.idImage}`}
-                                          src={imgSrc}
-                                          alt={`Evidencia ${img.idImage}`}
-                                          className="w-16 h-16 object-cover rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
-                                          onClick={() => setImageModal({ open: true, url: imgSrc })}
-                                          onError={(e) => {
-                                            console.error('Error cargando imagen:', img.idImage, 'Tipo:', img.ImageBase64 ? 'Base64' : 'Path');
-                                            e.target.onerror = null;
-                                            e.target.style.display = 'none';
-                                          }}
-                                        />
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                        {(() => {
+                          // Ordenar por fecha DESC (más reciente primero) para mostrar
+                          const sortedRecords = [...(ticket.StateRecords || [])].sort((a, b) => 
+                            new Date(b.DateOfChange) - new Date(a.DateOfChange)
                           );
-                        }) || <p className="text-sm text-muted-foreground">No hay historial disponible</p>}
+                          
+                          // Ordenar por fecha ASC para calcular transiciones correctamente
+                          const chronologicalRecords = [...(ticket.StateRecords || [])].sort((a, b) => 
+                            new Date(a.DateOfChange) - new Date(b.DateOfChange)
+                          );
+                          
+                          return sortedRecords.map((record) => {
+                            const StateIcon = getStateIcon(record.State).icon;
+                            const iconColor = getStateIcon(record.State).color;
+                            
+                            // Encontrar índice en el array cronológico para obtener estado anterior
+                            const chronoIndex = chronologicalRecords.findIndex(r => r.idStateRecord === record.idStateRecord);
+                            const isFirstRecord = chronoIndex === 0;
+                            const previousState = chronoIndex > 0 ? chronologicalRecords[chronoIndex - 1].State : null;
+                            const hasImages = record.Images?.filter(img => img.ImageBase64 || img.ImagePath).length > 0;
+                            
+                            return (
+                              <div 
+                                key={record.idStateRecord}
+                                className="p-3 rounded-lg bg-background/50 border border-border/50"
+                              >
+                                <div className="flex items-center gap-4">
+                                  {/* Columna Izquierda: Icono, Estado y Observación */}
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    <div className={`p-1.5 rounded-full ${iconColor} shrink-0`}>
+                                      <StateIcon className="w-4 h-4" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <span className="font-medium text-sm block">{record.State}</span>
+                                      {record.Observation && (
+                                        <p className="text-xs text-muted-foreground truncate">{record.Observation}</p>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Columna Central: Transición de Estados */}
+                                  <div className="flex items-center justify-center shrink-0 min-w-[180px]">
+                                    <div className="flex items-center gap-1.5 text-xs">
+                                      <span className="text-muted-foreground">{isFirstRecord ? t('tickets.details.ticketStarted') : previousState}</span>
+                                      <span className="text-muted-foreground/50">→</span>
+                                      <span className="text-primary font-medium">{record.State}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Columna Derecha: Fecha y Usuario */}
+                                  <div className="text-right shrink-0 min-w-[160px]">
+                                    <span className="text-xs text-muted-foreground block">
+                                      {formatUtcToLocalDateTime(record.DateOfChange, { includeSeconds: true })}
+                                    </span>
+                                    {record.ChangedBy && (
+                                      <span className="text-[10px] text-muted-foreground/60 italic block mt-0.5">
+                                        {t('common.by')} {record.ChangedBy}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                {/* Imágenes del registro */}
+                                {hasImages && (
+                                  <div className="mt-2 pt-2 border-t border-border/30 ml-10">
+                                    <div className="flex gap-2 flex-wrap">
+                                      {record.Images.filter(img => img.ImageBase64 || img.ImagePath).map((img) => {
+                                        const imgSrc = img.ImageBase64 
+                                          ? `data:image/jpeg;base64,${img.ImageBase64}`
+                                          : `http://localhost/Vault-Tec-Desk/api/${img.ImagePath}`;
+                                        return (
+                                          <img
+                                            key={`img-${record.idStateRecord}-${img.idImage}`}
+                                            src={imgSrc}
+                                            alt={`Evidencia ${img.idImage}`}
+                                            className="w-14 h-14 object-cover rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                                            onClick={() => setImageModal({ open: true, url: imgSrc })}
+                                            onError={(e) => {
+                                              e.target.onerror = null;
+                                              e.target.style.display = 'none';
+                                            }}
+                                          />
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          });
+                        })()}
+                        {(!ticket.StateRecords || ticket.StateRecords.length === 0) && (
+                          <p className="text-sm text-muted-foreground">{t('tickets.details.noTimeline')}</p>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -1060,7 +1333,7 @@ export default function TicketList() {
                       <CardHeader className="pb-3">
                         <h4 className="font-semibold flex items-center gap-2 text-sm">
                           <Star className="w-4 h-4 fill-primary text-primary" />
-                          Valoración del Servicio
+                          {t('tickets.review.title')}
                         </h4>
                       </CardHeader>
                       <CardContent>
@@ -1091,11 +1364,11 @@ export default function TicketList() {
                                 onClick={() => openReviewDialog(ticket)}
                               >
                                 <Star className="w-4 h-4" />
-                                Valorar Servicio
+                                {t('tickets.review.submitReview')}
                               </Button>
                             )}
                             <p className="text-xs text-muted-foreground">
-                              ¿Cómo fue tu experiencia con el servicio recibido?
+                              {t('tickets.review.commentPlaceholder')}
                             </p>
                           </div>
                         )}
@@ -1157,7 +1430,7 @@ export default function TicketList() {
             </button>
             <img
               src={imageModal.url}
-              alt="Vista ampliada"
+              alt={t('tickets.details.enlargedView')}
               className="max-w-full max-h-[90vh] object-contain rounded-lg"
               onClick={(e) => e.stopPropagation()}
             />

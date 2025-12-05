@@ -37,6 +37,19 @@ class UserModel
 	}
 
 	/**
+	 * Obtener todos los usuarios con un rol específico
+	 * @param int $idRol - ID del rol
+	 * @return array - Lista de usuarios con ese rol
+	 */
+	public function getByRole($idRol)
+	{
+		$idRol = intval($idRol);
+		$vSql = "SELECT idUser, Username, Email FROM user WHERE idRol = $idRol";
+		$vResultado = $this->enlace->ExecuteSQL($vSql);
+		return $vResultado ?: [];
+	}
+
+	/**
 	 * Obtener un usuario específico con su rol
 	 * @param int $id - ID del usuario
 	 * @return object|null - Objeto usuario con rol

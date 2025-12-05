@@ -35,8 +35,13 @@ class assign
             $assign = new AssignModel();
             $result = $assign->assignTicket($data);
 
-            $response->toJSON($result);
-        } catch (Exception $e) {
+            if ($result) {
+                $response->toJSON($result);
+            } else {
+                $response->status(500)->toJSON(null, 'Error al procesar la asignación');
+            }
+        } catch (Throwable $e) {
+            error_log("Error en AssignController::create - " . $e->getMessage() . " en línea " . $e->getLine());
             handleException($e);
         }
     }

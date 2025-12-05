@@ -162,7 +162,8 @@ class AssignModel
             throw new Exception('El técnico ya tiene la carga máxima de 5 tickets activos');
         }
 
-        $priorityScore = isset($data->PriorityScore) ? (int)$data->PriorityScore : null;
+        // PriorityScore no puede ser NULL, usar 0 como valor por defecto
+        $priorityScore = isset($data->PriorityScore) ? (int)$data->PriorityScore : 0;
         $workflowRules = isset($data->idWorkFlowRules) ? (int)$data->idWorkFlowRules : null;
         
         // Obtener fecha de asignación (desde frontend o NOW() como respaldo)
@@ -172,7 +173,7 @@ class AssignModel
 
         $existing = $this->enlace->ExecuteSQL("SELECT idAssign, idTechnician FROM assign WHERE idTicket = $idTicket LIMIT 1");
 
-        $priorityValue = $priorityScore !== null ? $priorityScore : 'NULL';
+        $priorityValue = $priorityScore;
         $workflowValue = $workflowRules !== null ? $workflowRules : 'NULL';
 
         $oldTechnicianId = null;
@@ -204,10 +205,33 @@ class AssignModel
         }
 
         $ticketM = new TicketModel();
+        $userM = new UserModel();
+
+        // Obtener datos del técnico asignado (incluyendo idUser)
+        $techSql = "SELECT idUser FROM technician WHERE idTechnician = $idTechnician";
+        $techResult = $this->enlace->ExecuteSQL($techSql);
+        $techUserId = (!empty($techResult) && is_array($techResult)) ? (int)$techResult[0]->idUser : null;
+        
+        $techUserData = $techUserId ? $userM->get($techUserId) : null;
+        $techUsername = $techUserData ? $techUserData->Username : "Técnico #$idTechnician";
+
+        // Obtener datos del ticket para notificaciones
+        $ticketData = $ticketM->get($idTicket);
+        $ticketOwnerId = $ticketData && isset($ticketData->idUser) ? $ticketData->idUser : null;
+        // El campo es 'title' (minúsculas) en la tabla Ticket
+        $ticketTitle = null;
+        if ($ticketData) {
+            if (isset($ticketData->title) && !empty($ticketData->title)) {
+                $ticketTitle = $ticketData->title;
+            } elseif (isset($ticketData->Title) && !empty($ticketData->Title)) {
+                $ticketTitle = $ticketData->Title;
+            }
+        }
+        $ticketTitle = $ticketTitle ?: "Ticket #$idTicket";
 
         $stateObservation = isset($data->StateObservation) && trim($data->StateObservation) !== ''
             ? $data->StateObservation
-            : 'Ticket asignado al técnico #' . $idTechnician;
+            : "Asignado a $techUsername";
 
         $statePayload = (object) [
             'idTicket' => $idTicket,
@@ -221,6 +245,49 @@ class AssignModel
             $statePayload->StateImages = $data->StateImages;
         }
 
+        // Crear notificaciones específicas de asignación
+        $assigningUserId = (int) $data->idUser;
+        
+        // Notificar al técnico asignado
+        if ($techUserId && $techUserId !== $assigningUserId) {
+            $this->createNotification(
+                $assigningUserId,
+                $techUserId,
+                "Ticket asignado",
+                "Se te ha asignado el ticket #$idTicket: $ticketTitle"
+            );
+        }
+        
+        // Notificar al dueño del ticket (si no es quien asigna)
+        if ($ticketOwnerId && (int)$ticketOwnerId !== $assigningUserId) {
+            $this->createNotification(
+                $assigningUserId,
+                (int)$ticketOwnerId,
+                "Técnico asignado",
+                "Tu ticket #$idTicket ha sido asignado a $techUsername"
+            );
+        }
+
         return $ticketM->update($statePayload);
+    }
+
+    /**
+     * Crea una notificación en la base de datos
+     * @param mixed $sender - ID del usuario que envía o null para Sistema
+     * @param int $reciever - ID del usuario que recibe
+     * @param string $event - Tipo de evento
+     * @param string $descripcion - Descripción del evento
+     */
+    private function createNotification($sender, $reciever, $event, $descripcion)
+    {
+        $senderValue = $sender ? "'" . $this->enlace->escapeString($sender) . "'" : "NULL";
+        $reciever = $this->enlace->escapeString($reciever);
+        $event = $this->enlace->escapeString($event);
+        $descripcion = $this->enlace->escapeString($descripcion);
+        
+        $vSql = "INSERT INTO notification (Descripcion, Sender, Reciever, DateOf, Event, idUser, idState) 
+                 VALUES ('$descripcion', $senderValue, '$reciever', NOW(), '$event', '$reciever', 7)";
+        
+        $this->enlace->ExecuteSQL_DML($vSql);
     }
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   Calendar as CalendarIcon, 
   ChevronLeft,
@@ -29,10 +30,10 @@ import {
 } from '@/components/ui/select';
 import { formatUtcToLocalDate, formatUtcToLocalTime } from '@/lib/utils';
 
-const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-const MONTHS = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+const DAYS_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const MONTHS_KEYS = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december'
 ];
 
 const getStateColor = (state) => {
@@ -57,6 +58,7 @@ const getTechnicianInitials = (name = '') => {
 
 export default function WorkCalendar() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAdmin, isLoadingRole } = useRole();
   const { technicianProfile, isTechnicianLoading } = useUser();
   const technicianIdValue = technicianProfile?.idTechnician ? Number(technicianProfile.idTechnician) : null;
@@ -130,7 +132,7 @@ export default function WorkCalendar() {
       }
     } catch (err) {
       console.error('Error loading calendar data:', err);
-      setError('Error al cargar los datos del calendario');
+      setError(t('calendar.errorLoadingData'));
     } finally {
       setLoading(false);
     }
@@ -272,9 +274,9 @@ export default function WorkCalendar() {
       {/* Header */}
       <div className="flex items-center justify-between mt-4 flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Calendario de Trabajo</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t('calendar.workCalendar.title')}</h1>
           <p className="text-muted-foreground mt-1">
-            {isAdmin ? 'Visualiza la carga de trabajo de todos los técnicos' : 'Tu calendario de tickets asignados'}
+            {isAdmin ? t('calendar.workCalendar.adminDescription') : t('calendar.workCalendar.techDescription')}
           </p>
         </div>
         
@@ -289,11 +291,11 @@ export default function WorkCalendar() {
               onValueChange={setFilterType}
             >
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Tipo de tickets" />
+                <SelectValue placeholder={t('calendar.workCalendar.ticketType')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los Tickets</SelectItem>
-                <SelectItem value="assigned">Tickets Asignados</SelectItem>
+                <SelectItem value="all">{t('calendar.workCalendar.allTickets')}</SelectItem>
+                <SelectItem value="assigned">{t('calendar.workCalendar.assignedTickets')}</SelectItem>
               </SelectContent>
             </Select>
 
@@ -303,10 +305,10 @@ export default function WorkCalendar() {
               onValueChange={setSelectedTechnician}
             >
               <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Seleccionar técnico" />
+                <SelectValue placeholder={t('calendar.workCalendar.selectTechnician')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los técnicos</SelectItem>
+                <SelectItem value="all">{t('calendar.workCalendar.allTechnicians')}</SelectItem>
                 {technicians.map((tech) => (
                   <SelectItem key={tech.idTechnician} value={tech.idTechnician}>
                     {tech.Username}
@@ -324,7 +326,7 @@ export default function WorkCalendar() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Ticket className="w-4 h-4 text-primary" />
-              Total Tickets
+              {t('calendar.workCalendar.totalTickets')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -336,7 +338,7 @@ export default function WorkCalendar() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Clock className="w-4 h-4 text-orange-500" />
-              En Proceso
+              {t('calendar.workCalendar.inProgress')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -350,7 +352,7 @@ export default function WorkCalendar() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-green-500" />
-              Resueltos
+              {t('calendar.workCalendar.resolved')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -364,7 +366,7 @@ export default function WorkCalendar() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-yellow-500" />
-              Pendientes
+              {t('calendar.workCalendar.pending')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -381,7 +383,7 @@ export default function WorkCalendar() {
             <div className="flex items-center gap-3">
               <CalendarIcon className="w-5 h-5 text-accent" />
               <CardTitle className="text-xl">
-                {MONTHS[month]} {year}
+                {t(`calendar.months.${MONTHS_KEYS[month]}`)} {year}
               </CardTitle>
             </div>
             <div className="flex items-center gap-2">
@@ -389,7 +391,7 @@ export default function WorkCalendar() {
                 <ChevronLeft className="w-4 h-4" />
               </Button>
               <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
-                Hoy
+                {t('calendar.today')}
               </Button>
               <Button variant="outline" size="icon" onClick={() => navigateMonth(1)}>
                 <ChevronRight className="w-4 h-4" />
@@ -399,12 +401,12 @@ export default function WorkCalendar() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-7 gap-3 mb-3">
-            {DAYS.map((day) => (
+            {DAYS_KEYS.map((day) => (
               <div
                 key={day}
                 className="text-center text-xs font-semibold text-muted-foreground tracking-wide"
               >
-                {day}
+                {t(`calendar.days.${day}`)}
               </div>
             ))}
           </div>
@@ -458,10 +460,10 @@ export default function WorkCalendar() {
                       </div>
                     ))}
                     {dayTickets.length === 0 && (
-                      <p className="text-[11px] text-muted-foreground">Sin tickets</p>
+                      <p className="text-[11px] text-muted-foreground">{t('calendar.workCalendar.noTickets')}</p>
                     )}
                     {dayTickets.length > 2 && (
-                      <p className="text-[10px] text-muted-foreground">+{dayTickets.length - 2} más</p>
+                      <p className="text-[10px] text-muted-foreground">{t('calendar.workCalendar.more', { count: dayTickets.length - 2 })}</p>
                     )}
                   </div>
                 </button>
@@ -476,11 +478,11 @@ export default function WorkCalendar() {
           <CardTitle className="flex items-center gap-2 text-lg">
             <Ticket className="w-5 h-5 text-primary" />
             {selectedDate
-              ? `${selectedDate.getDate()} de ${MONTHS[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`
-              : 'Selecciona un día'}
+              ? `${selectedDate.getDate()} ${t('common.of')} ${t(`calendar.months.${MONTHS_KEYS[selectedDate.getMonth()]}`)} ${selectedDate.getFullYear()}`
+              : t('calendar.workCalendar.selectDay')}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            {selectedDateTickets.length} ticket{selectedDateTickets.length !== 1 ? 's' : ''} en esta fecha
+            {t('calendar.workCalendar.ticketsOnDate', { count: selectedDateTickets.length })}
           </p>
         </CardHeader>
         <CardContent>
@@ -533,17 +535,17 @@ export default function WorkCalendar() {
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {selectedTicket.Description || 'Sin descripción'}
+                      {selectedTicket.Description || t('calendar.workCalendar.noDescription')}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
                       <div className="space-y-1">
                         <p className="flex items-center gap-1">
                           <Hash className="w-4 h-4" />
-                          Categoría: {selectedTicket.Category || 'N/A'}
+                          {t('calendar.workCalendar.category')}: {selectedTicket.Category || 'N/A'}
                         </p>
                         <p className="flex items-center gap-1">
                           <User className="w-4 h-4" />
-                          Cliente: {selectedTicket.User?.Username || 'N/A'}
+                          {t('calendar.workCalendar.client')}: {selectedTicket.User?.Username || 'N/A'}
                         </p>
                       </div>
                       <div className="space-y-1">
@@ -553,7 +555,7 @@ export default function WorkCalendar() {
                         </p>
                         {selectedTicket.Assign?.Technician && (
                           <p className="flex items-center gap-2">
-                            Técnico:
+                            {t('calendar.workCalendar.assignedTechnician')}:
                             <span className="font-medium">{selectedTicket.Assign.Technician.Username}</span>
                           </p>
                         )}
@@ -577,9 +579,9 @@ export default function WorkCalendar() {
                             }`}
                           >
                             <Clock className="w-3 h-3 mr-1" />
-                            Resp: {(() => {
+                            {t('calendar.workCalendar.response')}: {(() => {
                               const hoursRemaining = selectedTicket.SLA.ResponseHoursRemaining;
-                              return hoursRemaining <= 0 ? 'Vencida' : `${hoursRemaining}h`;
+                              return hoursRemaining <= 0 ? t('calendar.workCalendar.expired') : `${hoursRemaining}h`;
                             })()}
                           </Badge>
                         )}
@@ -597,15 +599,15 @@ export default function WorkCalendar() {
                             }`}
                           >
                             <Clock className="w-3 h-3 mr-1" />
-                            Resol: {(() => {
+                            {t('calendar.workCalendar.resolution')}: {(() => {
                               const hoursRemaining = selectedTicket.SLA.ResolutionHoursRemaining;
-                              return hoursRemaining <= 0 ? 'Vencida' : `${hoursRemaining}h`;
+                              return hoursRemaining <= 0 ? t('calendar.workCalendar.expired') : `${hoursRemaining}h`;
                             })()}
                           </Badge>
                         )}
                         {/* Mensaje si no hay badges (estado 4 o 5) */}
                         {Number(selectedTicket.idState) >= 4 && (
-                          <span className="text-xs text-muted-foreground">SLA completado</span>
+                          <span className="text-xs text-muted-foreground">{t('calendar.workCalendar.slaCompleted')}</span>
                         )}
                       </div>
                     )}
@@ -613,7 +615,7 @@ export default function WorkCalendar() {
                     <div className="rounded-xl border bg-background/80 p-4 space-y-3">
                       <p className="text-sm font-semibold flex items-center gap-2">
                         <User className="w-4 h-4" />
-                        Técnico asignado
+                        {t('calendar.workCalendar.assignedTechnician')}
                       </p>
 
                       {selectedTicket.Assign?.Technician ? (
@@ -630,12 +632,12 @@ export default function WorkCalendar() {
                             </div>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Este técnico es el responsable actual del seguimiento del ticket y deberá documentar cada cambio de estado.
+                            {t('calendar.workCalendar.techResponsibility')}
                           </p>
                         </>
                       ) : (
                         <p className="text-xs text-muted-foreground">
-                          Aún no hay un técnico asignado. Usa el panel de asignación manual para seleccionar uno compatible.
+                          {t('calendar.workCalendar.noTechAssigned')}
                         </p>
                       )}
                     </div>
@@ -643,20 +645,20 @@ export default function WorkCalendar() {
                     <div className="flex flex-wrap gap-2 pt-2 border-t border-dashed">
                       <Button size="sm" variant="outline" className="gap-2" onClick={handleNavigateToTicket}>
                         <Eye className="w-4 h-4" />
-                        Ver ticket
+                        {t('calendar.viewTicket')}
                       </Button>
                     </div>
                   </div>
                 ) : (
                   <div className="text-sm text-muted-foreground py-10 text-center">
-                    Selecciona un ticket para ver los detalles.
+                    {t('calendar.workCalendar.selectTicketDetails')}
                   </div>
                 )}
               </div>
             </div>
           ) : (
             <div className="text-sm text-muted-foreground py-12 text-center">
-              No hay tickets registrados para esta fecha.
+              {t('calendar.workCalendar.noTicketsForDate')}
             </div>
           )}
         </CardContent>

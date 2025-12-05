@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -18,15 +19,9 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { X, Loader2, User, Zap } from 'lucide-react';
-const getTechnicianInitials = (name = '') => {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('') || '—';
-};
+import { X, Loader2, User, Zap, Calculator, CheckCircle2, AlertTriangle } from 'lucide-react';
+import AssignService from '@/services/AssignService';
+import { getTechnicianAvatarUrl, getTechnicianInitials } from '@/hooks/use-avatar';
 
 export default function AssignmentDialog({
   open,
@@ -36,16 +31,18 @@ export default function AssignmentDialog({
   onAssign,
   loading,
 }) {
+  const { t } = useTranslation();
   const [assignmentMethod, setAssignmentMethod] = useState('manual');
   const [selectedTechnicianId, setSelectedTechnicianId] = useState('');
   const [observation, setObservation] = useState('');
   const [evidence, setEvidence] = useState(null);
   const [evidencePreview, setEvidencePreview] = useState(null);
   const [evidenceError, setEvidenceError] = useState('');
-
-  // Test asignacion A1
-  // Asignacion automatica de tecnicos
-  //
+  
+  // Estados para auto-triage
+  const [autoTriageResult, setAutoTriageResult] = useState(null);
+  const [autoTriageLoading, setAutoTriageLoading] = useState(false);
+  const [autoTriageError, setAutoTriageError] = useState(null);
 
   // Obtener la prioridad base desde el ticket (idPriority de la tabla ticket)
   const basePriority = ticket?.idPriority || 2;
@@ -55,76 +52,10 @@ export default function AssignmentDialog({
     const priority = parseInt(basePriority);
     const slaHoursRemaining = ticket?.SLA?.ResolutionHoursRemaining || 0;
     const score = (priority * 1000) - slaHoursRemaining;
-    return Math.max(0, Math.round(score)); // Asegurar que no sea negativo
+    return Math.round(score); // Puede ser negativo si ya pasó el SLA
   };
 
-  // Reset form when dialog opens/closes
-  useEffect(() => {
-    if (!open) {
-      setAssignmentMethod('manual');
-      setSelectedTechnicianId('');
-      setObservation('');
-      setEvidence(null);
-      setEvidencePreview(null);
-      setEvidenceError('');
-    }
-  }, [open]);
-
-  // Update observation when method changes to automatic
-  useEffect(() => {
-    if (assignmentMethod === 'automatic') {
-      setObservation('Asignado de manera automática según reglas de autotriaje');
-    } else if (observation === 'Asignado de manera automática según reglas de autotriaje') {
-      setObservation('');
-    }
-  }, [assignmentMethod, observation]);
-
-  const handleEvidenceChange = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setEvidenceError('Solo se permiten archivos de imagen.');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setEvidenceError('La imagen no debe superar los 5MB.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setEvidence(reader.result);
-      setEvidencePreview(reader.result);
-      setEvidenceError('');
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const clearEvidence = () => {
-    setEvidence(null);
-    setEvidencePreview(null);
-    setEvidenceError('');
-  };
-
-  const handleAssign = () => {
-    if (assignmentMethod === 'manual' && !selectedTechnicianId) {
-      return;
-    }
-
-    if (!observation.trim()) {
-      return;
-    }
-
-    onAssign({
-      method: assignmentMethod,
-      technicianId: assignmentMethod === 'manual' ? Number(selectedTechnicianId) : null,
-      priorityScore: calculatePriorityScore(),
-      observation: observation.trim(),
-      evidence: evidence,
-    });
-  };
+  const priorityScore = calculatePriorityScore();
 
   // Get required specialties from ticket category
   const requiredSpecialtyIds = ticket?.CategoryData?.SpecialtyIds || [];
@@ -151,6 +82,186 @@ export default function AssignmentDialog({
     return true;
   });
 
+  // Reset form when dialog opens/closes
+  useEffect(() => {
+    if (!open) {
+      setAssignmentMethod('manual');
+      setSelectedTechnicianId('');
+      setObservation('');
+      setEvidence(null);
+      setEvidencePreview(null);
+      setEvidenceError('');
+      setAutoTriageResult(null);
+      setAutoTriageError(null);
+    }
+  }, [open]);
+
+  // Ejecutar auto-triage cuando se selecciona el método automático
+  useEffect(() => {
+    if (assignmentMethod === 'automatic' && open && ticket) {
+      executeAutoTriage();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignmentMethod, open, ticket?.idTicket]);
+
+  // Update observation when auto-triage result changes
+  useEffect(() => {
+    if (assignmentMethod === 'automatic' && autoTriageResult) {
+      setObservation(t('tickets.assignment.autoAssignmentRule', { ruleId: autoTriageResult.rule?.idWorkFlowRules }));
+    } else if (assignmentMethod === 'automatic' && autoTriageError) {
+      setObservation('');
+    } else if (assignmentMethod !== 'automatic') {
+      setObservation((prev) => prev.startsWith(t('tickets.assignment.autoAssignmentPrefix')) ? '' : prev);
+    }
+  }, [assignmentMethod, autoTriageResult, autoTriageError, t]);
+
+  // Función para ejecutar el auto-triage (lógica en frontend)
+  const executeAutoTriage = async () => {
+    if (!ticket?.idCategory || availableTechnicians.length === 0) {
+      setAutoTriageError(t('tickets.assignment.noTechniciansAvailable'));
+      setAutoTriageResult(null);
+      return;
+    }
+
+    setAutoTriageLoading(true);
+    setAutoTriageError(null);
+    setAutoTriageResult(null);
+
+    try {
+      // Obtener las reglas de workflow ordenadas por OrderPriority
+      const response = await AssignService.getWorkFlowRules();
+      
+      if (!response.data?.success || !response.data?.data) {
+        setAutoTriageError(t('tickets.assignment.autoTriageRulesError'));
+        return;
+      }
+
+      const rules = response.data.data; // Ya vienen ordenadas por OrderPriority ASC
+      const ticketCategoryId = Number(ticket.idCategory);
+
+      let matchedResult = null;
+
+      // Iterar por las reglas en orden de prioridad (OrderPriority)
+      for (const rule of rules) {
+        const ruleCategory = rule.idCategory ? Number(rule.idCategory) : null;
+        const ruleSpecialty = rule.idSpecialty ? Number(rule.idSpecialty) : null;
+        const ruleWorkLoad = rule.WorkLoad !== null ? Number(rule.WorkLoad) : null;
+
+        // Si la regla tiene categoría específica y no coincide, saltar
+        if (ruleCategory !== null && ruleCategory !== ticketCategoryId) {
+          continue;
+        }
+
+        // Buscar técnico que cumpla con la regla (usar availableTechnicians para datos completos)
+        for (const tech of availableTechnicians) {
+          const techWorkLoad = parseInt(tech.WorkLoad || 0);
+          const techSpecialtyIds = (tech.SpecialtyIds || []).map(id => Number(id));
+
+          // Verificar WorkLoad si la regla lo especifica
+          if (ruleWorkLoad !== null && techWorkLoad > ruleWorkLoad) {
+            continue;
+          }
+
+          // Verificar si el técnico tiene la especialidad de la regla (si se especifica)
+          if (ruleSpecialty !== null && !techSpecialtyIds.includes(ruleSpecialty)) {
+            continue;
+          }
+
+          // Verificar que el técnico tenga las especialidades requeridas por la categoría
+          if (hasSpecialtyRequirements) {
+            const reqIds = requiredSpecialtyIds.map(id => Number(id));
+            const hasRequired = reqIds.some(reqId => techSpecialtyIds.includes(reqId));
+            if (!hasRequired) {
+              continue;
+            }
+          }
+
+          // ¡Encontramos un match! Usar el técnico completo con todos sus datos
+          matchedResult = {
+            technician: tech,
+            rule: rule
+          };
+          break;
+        }
+
+        if (matchedResult) break;
+      }
+
+      if (matchedResult) {
+        setAutoTriageResult(matchedResult);
+      } else {
+        setAutoTriageError(t('tickets.assignment.noMatchingTechnician'));
+      }
+    } catch (error) {
+      console.error('Error en auto-triage:', error);
+      setAutoTriageError(error.message || 'Error al ejecutar auto-triage');
+    } finally {
+      setAutoTriageLoading(false);
+    }
+  };
+
+  const handleEvidenceChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setEvidenceError(t('tickets.assignment.onlyImagesAllowed'));
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setEvidenceError(t('tickets.assignment.imageSizeLimit'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setEvidence(reader.result);
+      setEvidencePreview(reader.result);
+      setEvidenceError('');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearEvidence = () => {
+    setEvidence(null);
+    setEvidencePreview(null);
+    setEvidenceError('');
+  };
+
+  const handleAssign = () => {
+    if (assignmentMethod === 'manual' && !selectedTechnicianId) {
+      return;
+    }
+
+    if (assignmentMethod === 'automatic' && !autoTriageResult) {
+      return;
+    }
+
+    if (!observation.trim()) {
+      return;
+    }
+
+    // Para asignación automática, usar el técnico del auto-triage
+    const techId = assignmentMethod === 'manual' 
+      ? Number(selectedTechnicianId) 
+      : autoTriageResult?.technician?.idTechnician;
+
+    // Para asignación automática, incluir el idWorkFlowRules
+    const workflowRuleId = assignmentMethod === 'automatic' 
+      ? autoTriageResult?.rule?.idWorkFlowRules 
+      : null;
+
+    onAssign({
+      method: assignmentMethod,
+      technicianId: techId,
+      priorityScore: priorityScore,
+      observation: observation.trim(),
+      evidence: evidence,
+      idWorkFlowRules: workflowRuleId,
+    });
+  };
+
   const selectedTechnician = availableTechnicians.find(
     (tech) => String(tech.idTechnician) === selectedTechnicianId
   );
@@ -159,14 +270,15 @@ export default function AssignmentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] bg-card border-border">
         <DialogHeader>
-          <DialogTitle className="text-card-foreground">Asignar Ticket</DialogTitle>
+          <DialogTitle className="text-card-foreground">{t('tickets.assignment.dialogTitle')}</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Ticket #{ticket?.idTicket}: {ticket?.Title}
+            {t('tickets.assignment.ticketInfo', { id: ticket?.idTicket, title: ticket?.Title })}
           </DialogDescription>
+
           {hasSpecialtyRequirements && (
             <div className="mt-3 p-3 rounded-lg bg-accent/10 border border-accent/30 text-accent">
               <p className="text-xs font-medium text-muted-foreground mb-2">
-                Especialidades requeridas para esta categoría:
+                {t('tickets.assignment.requiredSpecialties')}
               </p>
               <p className="text-sm text-primary font-medium">
                 {ticket?.CategoryData?.Specialties || 'N/A'}
@@ -178,7 +290,7 @@ export default function AssignmentDialog({
         <div className="space-y-4 py-4">
           {/* Assignment Method */}
           <div className="space-y-3">
-            <Label className="text-card-foreground">Método de asignación</Label>
+            <Label className="text-card-foreground">{t('tickets.assignment.assignmentMethod')}</Label>
             <div className="grid grid-cols-2 gap-3">
               <Button
                 type="button"
@@ -192,10 +304,10 @@ export default function AssignmentDialog({
               >
                 <div className="flex items-center gap-2 w-full">
                   <User className="w-5 h-5" />
-                  <span className="font-semibold">Manual</span>
+                  <span className="font-semibold">{t('tickets.assignment.manual')}</span>
                 </div>
                 <span className="text-xs font-normal opacity-80 text-left">
-                  Seleccionar técnico específico
+                  {t('tickets.assignment.manualDescription')}
                 </span>
               </Button>
               
@@ -211,45 +323,106 @@ export default function AssignmentDialog({
               >
                 <div className="flex items-center gap-2 w-full">
                   <Zap className="w-5 h-5" />
-                  <span className="font-semibold">Automático</span>
+                  <span className="font-semibold">{t('tickets.assignment.automatic')}</span>
                 </div>
                 <span className="text-xs font-normal opacity-80 text-left">
-                  Asignar por disponibilidad y especialidad
+                  {t('tickets.assignment.automaticDescription')}
                 </span>
               </Button>
             </div>
           </div>
+
+          {/* Resultado del Auto-Triage (solo para automático) */}
+          {assignmentMethod === 'automatic' && (
+            <div className="space-y-3">
+              {autoTriageLoading && (
+                <div className="p-4 rounded-lg bg-muted/50 border border-border flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">{t('tickets.assignment.executingAutoTriage')}</span>
+                </div>
+              )}
+              
+              {autoTriageError && !autoTriageLoading && (
+                <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30 flex items-center gap-3">
+                  <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-destructive">{t('tickets.assignment.cannotAssignAutomatically')}</p>
+                    <p className="text-xs text-muted-foreground">{autoTriageError}</p>
+                  </div>
+                </div>
+              )}
+              
+              {autoTriageResult && !autoTriageLoading && (
+                <div className="space-y-3">
+                  {/* Puntaje de Prioridad - solo visible en automático */}
+                  <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Calculator className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium text-card-foreground">{t('tickets.assignment.priorityScore')}</span>
+                      </div>
+                      <Badge variant="outline" className={`text-lg font-bold ${priorityScore > 2000 ? 'text-red-500 border-red-500' : priorityScore > 1000 ? 'text-yellow-500 border-yellow-500' : 'text-green-500 border-green-500'}`}>
+                        {priorityScore}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Técnico Encontrado */}
+                  <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      <span className="text-sm font-medium text-green-600">{t('tickets.assignment.technicianFound')}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50">
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={getTechnicianAvatarUrl(autoTriageResult.technician)} />
+                        <AvatarFallback>
+                          {getTechnicianInitials(autoTriageResult.technician?.Username)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-medium">{autoTriageResult.technician?.Username}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t('tickets.assignment.currentWorkload', { current: autoTriageResult.technician?.WorkLoad || 0, max: 5 })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Technician Selection (only for manual) */}
           {assignmentMethod === 'manual' && (
             <div className="space-y-3">
               <div className="space-y-2">
-                <Label className="text-card-foreground">Seleccionar técnico</Label>
+                <Label className="text-card-foreground">{t('tickets.assignment.selectTechnician')}</Label>
                 <Select value={selectedTechnicianId} onValueChange={setSelectedTechnicianId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Elige un técnico..." />
+                    <SelectValue placeholder={t('tickets.assignment.chooseTechnician')} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="right" sideOffset={8}>
                     {availableTechnicians.length === 0 ? (
                       <div className="p-4 text-center text-sm text-muted-foreground">
                         {hasSpecialtyRequirements 
-                          ? 'No hay técnicos disponibles con las especialidades requeridas'
-                          : 'No hay técnicos disponibles'}
+                          ? t('tickets.assignment.noTechniciansWithSpecialties')
+                          : t('tickets.assignment.noTechnicians')}
                       </div>
                     ) : (
                       availableTechnicians.map((tech) => (
                         <SelectItem key={tech.idTechnician} value={String(tech.idTechnician)}>
                           <div className="flex items-center gap-2">
                             <Avatar className="w-6 h-6">
-                              <AvatarImage
-                                src={`https://api.dicebear.com/7.x/${tech.AvatarStyle || 'avataaars'}/svg?seed=${tech.AvatarSeed || tech.Username}`}
-                              />
+                              <AvatarImage src={getTechnicianAvatarUrl(tech)} />
                               <AvatarFallback className="text-xs">
                                 {getTechnicianInitials(tech.Username)}
                               </AvatarFallback>
                             </Avatar>
                             <span>{tech.Username}</span>
                             <Badge variant="outline" className="ml-auto text-xs">
-                              Carga: {tech.WorkLoad || 0}/5
+                              {t('tickets.assignment.workload', { current: tech.WorkLoad || 0, max: 5 })}
                             </Badge>
                           </div>
                         </SelectItem>
@@ -262,7 +435,7 @@ export default function AssignmentDialog({
               {/* Show selected technician specialties */}
               {selectedTechnician && selectedTechnician.Specialties && selectedTechnician.Specialties.length > 0 && (
                 <div className="p-3 rounded-lg bg-accent/10 border border-accent/20">
-                  <Label className="text-xs text-muted-foreground mb-2 block">Especialidades del técnico:</Label>
+                  <Label className="text-xs text-muted-foreground mb-2 block">{t('tickets.assignment.technicianSpecialties')}</Label>
                   <div className="flex flex-wrap gap-2">
                     {selectedTechnician.Specialties.map((specialty, index) => (
                       <Badge 
@@ -282,11 +455,11 @@ export default function AssignmentDialog({
           {/* Observation */}
           <div className="space-y-2">
             <Label htmlFor="observation" className="text-card-foreground">
-              Observación <span className="text-destructive">*</span>
+              {t('tickets.assignment.observation')} <span className="text-destructive">*</span>
             </Label>
             <textarea
               id="observation"
-              placeholder="Describe el motivo de la asignación..."
+              placeholder={t('tickets.assignment.observationPlaceholder')}
               value={observation}
               onChange={(e) => setObservation(e.target.value)}
               rows={3}
@@ -295,14 +468,14 @@ export default function AssignmentDialog({
             />
             {assignmentMethod === 'automatic' && (
               <p className="text-xs text-muted-foreground">
-                La observación se genera automáticamente para asignaciones automáticas.
+                {t('tickets.assignment.autoObservationNote')}
               </p>
             )}
           </div>
 
           {/* Evidence Upload */}
           <div className="space-y-2">
-            <Label className="text-card-foreground">Evidencia (opcional)</Label>
+            <Label className="text-card-foreground">{t('tickets.assignment.evidence')}</Label>
             {!evidencePreview ? (
               <div className="space-y-2">
                 <input
@@ -342,7 +515,7 @@ export default function AssignmentDialog({
             onClick={() => onOpenChange(false)} 
             disabled={loading}
           >
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={handleAssign}
@@ -355,10 +528,10 @@ export default function AssignmentDialog({
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Asignando...
+                {t('tickets.assignment.assigning')}
               </>
             ) : (
-              'Asignar'
+              t('tickets.assignment.assign')
             )}
           </Button>
         </DialogFooter>

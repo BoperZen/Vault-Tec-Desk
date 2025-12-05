@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   FolderKanban,
   Tag,
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/collapsible';
 
 export default function CategoryList() {
+  const { t } = useTranslation();
   const { isAdmin, isLoadingRole } = useRole();
   const location = useLocation();
   const navigate = useNavigate();
@@ -81,14 +83,14 @@ export default function CategoryList() {
   const processedCategories = filteredCategories.map(category => {
     // Determinar color de prioridad
     let priorityColor = 'bg-yellow-500'; // Media por defecto
-    let priorityText = 'Media';
+    let priorityKey = 'categories.priority.medium';
     
     if (category.idPriority === 1 || category.idPriority === '1') {
       priorityColor = 'bg-green-500';
-      priorityText = 'Baja';
+      priorityKey = 'categories.priority.low';
     } else if (category.idPriority === 3 || category.idPriority === '3') {
       priorityColor = 'bg-red-500';
-      priorityText = 'Alta';
+      priorityKey = 'categories.priority.high';
     }
     
     return {
@@ -96,7 +98,7 @@ export default function CategoryList() {
       LabelsArray: category.Labels ? category.Labels.split(', ').filter(l => l) : [],
       SpecialtiesArray: category.Specialties ? category.Specialties.split(', ').filter(s => s) : [],
       PriorityColor: priorityColor,
-      PriorityText: priorityText,
+      PriorityKey: priorityKey,
     };
   });
 
@@ -144,10 +146,10 @@ export default function CategoryList() {
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <FolderKanban className="w-8 h-8 text-primary" />
-              Gestión de Categorías
+              {t('categories.title')}
             </h1>
             <p className="text-muted-foreground mt-2">
-              Administra las categorías del sistema de tickets
+              {t('categories.subtitle')}
             </p>
           </div>
           <Button 
@@ -155,7 +157,7 @@ export default function CategoryList() {
             onClick={() => navigate('/categories/create')}
           >
             <Plus className="w-4 h-4" />
-            Nueva Categoría
+            {t('categories.createCategory')}
           </Button>
         </div>
 
@@ -164,7 +166,7 @@ export default function CategoryList() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Buscar categorías..."
+            placeholder={t('categories.searchPlaceholder')}
             className="pl-10"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -178,7 +180,7 @@ export default function CategoryList() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Categorías</p>
+                <p className="text-sm text-muted-foreground">{t('categories.stats.totalCategories')}</p>
                 <p className="text-2xl font-bold">{categories.length}</p>
               </div>
               <FolderKanban className="w-8 h-8 text-primary" />
@@ -190,7 +192,7 @@ export default function CategoryList() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Etiquetas</p>
+                <p className="text-sm text-muted-foreground">{t('categories.stats.totalLabels')}</p>
                 <p className="text-2xl font-bold">
                   {categories.reduce((sum, cat) => {
                     const labelsCount = cat.Labels ? cat.Labels.split(', ').filter(l => l).length : 0;
@@ -207,7 +209,7 @@ export default function CategoryList() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Especialidades Únicas</p>
+                <p className="text-sm text-muted-foreground">{t('categories.stats.uniqueSpecialties')}</p>
                 <p className="text-2xl font-bold">
                   {new Set(categories.flatMap(cat => 
                     cat.Specialties ? cat.Specialties.split(', ').filter(s => s) : []
@@ -226,9 +228,9 @@ export default function CategoryList() {
           <CardContent className="py-12">
             <div className="text-center text-muted-foreground">
               <FolderKanban className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">No se encontraron categorías</p>
+              <p className="text-lg font-medium">{t('categories.noCategories')}</p>
               <p className="text-sm mt-2">
-                {searchTerm ? 'Intenta con otro término de búsqueda' : 'Crea tu primera categoría'}
+                {searchTerm ? t('categories.tryAnotherSearch') : t('categories.createFirst')}
               </p>
             </div>
           </CardContent>
@@ -256,7 +258,7 @@ export default function CategoryList() {
                           variant="outline" 
                           className={`text-xs font-semibold ${getPriorityBadgeColor(category.idPriority)}`}
                         >
-                          {category.PriorityText}
+                          {t(category.PriorityKey)}
                         </Badge>
                         <ChevronDown
                           className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${
@@ -267,8 +269,8 @@ export default function CategoryList() {
                     </div>
                     <CardDescription className="flex items-center gap-2 text-xs mt-2">
                       <Clock className="w-3 h-3" />
-                      <span>Resp: {category.MaxAnswerTime || 'N/A'}</span>
-                      <span>• Resol: {category.MaxResolutionTime || 'N/A'}</span>
+                      <span>{t('categories.sla.response')}: {category.MaxAnswerTime || 'N/A'}</span>
+                      <span>• {t('categories.sla.resolution')}: {category.MaxResolutionTime || 'N/A'}</span>
                     </CardDescription>
                   </CardHeader>
                 </CollapsibleTrigger>
@@ -282,7 +284,7 @@ export default function CategoryList() {
                       <div className="flex items-center gap-2 mb-2">
                         <Tag className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm font-medium text-muted-foreground">
-                          Etiquetas
+                          {t('categories.labels.title')}
                         </span>
                       </div>
                       {category.LabelsArray.length > 0 ? (
@@ -299,7 +301,7 @@ export default function CategoryList() {
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground italic">
-                          Sin etiquetas asignadas
+                          {t('categories.labels.noLabels')}
                         </p>
                       )}
                     </div>
@@ -311,7 +313,7 @@ export default function CategoryList() {
                       <div className="flex items-center gap-2 mb-2">
                         <Briefcase className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm font-medium text-muted-foreground">
-                          Especialidades Requeridas
+                          {t('categories.specialties.title')}
                         </span>
                       </div>
                       {category.SpecialtiesArray.length > 0 ? (
@@ -330,7 +332,7 @@ export default function CategoryList() {
                         <div className="text-center py-4 border-2 border-dashed border-border/50 rounded-lg">
                           <Briefcase className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                           <p className="text-xs text-muted-foreground">
-                            Sin especialidades requeridas
+                            {t('categories.specialties.noSpecialties')}
                           </p>
                         </div>
                       )}
@@ -349,7 +351,7 @@ export default function CategoryList() {
                         }}
                       >
                         <Edit className="w-3 h-3 mr-2" />
-                        Editar
+                        {t('common.edit')}
                       </Button>
                       <Button 
                         variant="ghost" 
@@ -357,7 +359,7 @@ export default function CategoryList() {
                         className="flex-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="w-3 h-3 mr-2" />
-                        Eliminar
+                        {t('common.delete')}
                       </Button>
                     </div>
                   </CardContent>

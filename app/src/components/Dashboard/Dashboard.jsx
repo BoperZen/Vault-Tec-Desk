@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowRight, Ticket, Users, Settings, Calendar, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
@@ -9,6 +10,7 @@ import TicketService from '@/services/TicketService';
 import TechnicianService from '@/services/TechnicianService';
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const { currentUser, technicianProfile, isTechnicianLoading } = useUser();
   const { isAdmin, isTechnician } = useRole();
   const technicianId = technicianProfile?.idTechnician;
@@ -102,11 +104,11 @@ export default function Dashboard() {
             </div>
             
             <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Welcome to Vault-Tec Desk
+              {t('dashboard.welcome')}
             </h1>
             
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Sistema de gestión de tickets Help Desk. Bienvenido, <span className="text-primary font-semibold">{currentUser.username}</span>
+              {t('dashboard.subtitle')} <span className="text-primary font-semibold">{currentUser.username}</span>
             </p>
           </div>
 
@@ -118,17 +120,17 @@ export default function Dashboard() {
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                 <Ticket className="w-6 h-6 text-primary" />
               </div>
-              <CardTitle>{isTechnician ? 'Mis Tickets' : 'Tickets'}</CardTitle>
+              <CardTitle>{isTechnician ? t('dashboard.quickActions.tickets.myTickets') : t('dashboard.quickActions.tickets.title')}</CardTitle>
               <CardDescription>
                 {isTechnician 
-                  ? 'Gestiona tus tickets asignados' 
-                  : 'Gestiona y visualiza todos los tickets del sistema'}
+                  ? t('dashboard.quickActions.tickets.techDescription')
+                  : t('dashboard.quickActions.tickets.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Link to="/tickets">
                 <Button className="w-full group-hover:bg-primary group-hover:text-primary-foreground">
-                  Ver Tickets
+                  {t('dashboard.quickActions.tickets.button')}
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
               </Link>
@@ -141,17 +143,17 @@ export default function Dashboard() {
               <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4 group-hover:bg-accent/20 transition-colors">
                 <Calendar className="w-6 h-6 text-accent" />
               </div>
-              <CardTitle>Calendario</CardTitle>
+              <CardTitle>{t('dashboard.quickActions.calendar.title')}</CardTitle>
               <CardDescription>
                 {isTechnician 
-                  ? 'Visualiza tu calendario de trabajo' 
-                  : 'Visualiza el calendario de tickets'}
+                  ? t('dashboard.quickActions.calendar.techDescription')
+                  : t('dashboard.quickActions.calendar.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Link to="/calendar">
                 <Button variant="outline" className="w-full group-hover:bg-accent group-hover:text-accent-foreground group-hover:border-accent">
-                  Ver Calendario
+                  {t('dashboard.quickActions.calendar.button')}
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
               </Link>
@@ -165,15 +167,15 @@ export default function Dashboard() {
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                   <Users className="w-6 h-6 text-primary" />
                 </div>
-                <CardTitle>Técnicos</CardTitle>
+                <CardTitle>{t('dashboard.quickActions.technicians.title')}</CardTitle>
                 <CardDescription>
-                  Consulta la información de los técnicos disponibles
+                  {t('dashboard.quickActions.technicians.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Link to="/technicians">
                   <Button variant="outline" className="w-full group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary">
-                    Ver Técnicos
+                    {t('dashboard.quickActions.technicians.button')}
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </Button>
                 </Link>
@@ -186,15 +188,15 @@ export default function Dashboard() {
                 <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center mb-4 group-hover:bg-muted/80 transition-colors">
                   <Settings className="w-6 h-6 text-muted-foreground" />
                 </div>
-                <CardTitle>Configuración</CardTitle>
+                <CardTitle>{t('dashboard.quickActions.settings.title')}</CardTitle>
                 <CardDescription>
-                  Ajusta las preferencias de tu cuenta
+                  {t('dashboard.quickActions.settings.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Link to="/settings">
                   <Button variant="outline" className="w-full">
-                    Configurar
+                    {t('dashboard.quickActions.settings.button')}
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </Button>
                 </Link>
@@ -211,47 +213,47 @@ export default function Dashboard() {
     {/* Dashboard Stats Section - Full width */}
     <div className="px-8 pb-2">
       <div className="container max-w-7xl mx-auto">
-        <h2 className="text-2xl font-bold mb-6 text-center">Estadísticas del Sistema</h2>
+        <h2 className="text-2xl font-bold mb-6 text-center">{t('dashboard.systemStats')}</h2>
         
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                {isTechnician ? 'Mis Tickets Asignados' : isAdmin ? 'Total de Tickets' : 'Mis Tickets'}
+                {isTechnician ? t('dashboard.stats.myAssignedTickets') : isAdmin ? t('dashboard.stats.totalTickets') : t('dashboard.stats.myTickets')}
               </CardTitle>
               <Ticket className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{loading ? '...' : stats.myTickets}</div>
               <p className="text-xs text-muted-foreground">
-                {isTechnician ? 'Tickets bajo tu responsabilidad' : isAdmin ? 'En todo el sistema' : 'Tickets que has creado'}
+                {isTechnician ? t('dashboard.stats.underResponsibility') : isAdmin ? t('dashboard.stats.inSystem') : t('dashboard.stats.ticketsCreated')}
               </p>
             </CardContent>
           </Card>
           
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Resueltos</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('dashboard.stats.resolved')}</CardTitle>
               <CheckCircle2 className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-500">{loading ? '...' : stats.resolved}</div>
               <p className="text-xs text-muted-foreground">
-                Tickets completados
+                {t('dashboard.stats.ticketsCompleted')}
               </p>
             </CardContent>
           </Card>
           
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">En Proceso</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('dashboard.stats.inProgress')}</CardTitle>
               <Clock className="h-4 w-4 text-yellow-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-500">{loading ? '...' : stats.inProgress}</div>
               <p className="text-xs text-muted-foreground">
-                En desarrollo activo
+                {t('dashboard.stats.activeDevelopment')}
               </p>
             </CardContent>
           </Card>
@@ -263,20 +265,20 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Pendientes de Atender</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('dashboard.stats.pendingAttention')}</CardTitle>
                   <AlertCircle className="h-4 w-4 text-orange-500" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-orange-500">{loading ? '...' : stats.pending}</div>
                   <p className="text-xs text-muted-foreground">
-                    Requieren tu atención inmediata
+                    {t('dashboard.stats.requireAttention')}
                   </p>
                 </CardContent>
               </Card>
               
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Tasa de Resolución</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('dashboard.stats.resolutionRate')}</CardTitle>
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
                 </CardHeader>
                 <CardContent>
@@ -284,7 +286,7 @@ export default function Dashboard() {
                     {loading ? '...' : stats.myTickets > 0 ? `${Math.round((stats.resolved / stats.myTickets) * 100)}%` : '0%'}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    De tus tickets asignados
+                    {t('dashboard.stats.ofAssigned')}
                   </p>
                 </CardContent>
               </Card>
@@ -295,8 +297,8 @@ export default function Dashboard() {
               {/* Chart Card */}
               <Card className="md:col-span-1">
                 <CardHeader>
-                  <CardTitle className="text-lg">Mis Tickets Asignados</CardTitle>
-                  <CardDescription>Distribución por estado</CardDescription>
+                  <CardTitle className="text-lg">{t('dashboard.charts.myAssignedTickets')}</CardTitle>
+                  <CardDescription>{t('dashboard.charts.distributionByState')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -305,7 +307,7 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                          <span className="font-medium">Resueltos</span>
+                          <span className="font-medium">{t('dashboard.stats.resolved')}</span>
                         </div>
                         <span className="text-muted-foreground">{loading ? '...' : stats.resolved}</span>
                       </div>
@@ -322,7 +324,7 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                          <span className="font-medium">En Proceso</span>
+                          <span className="font-medium">{t('dashboard.stats.inProgress')}</span>
                         </div>
                         <span className="text-muted-foreground">{loading ? '...' : stats.inProgress}</span>
                       </div>
@@ -339,7 +341,7 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                          <span className="font-medium">Pendientes</span>
+                          <span className="font-medium">{t('dashboard.stats.pending')}</span>
                         </div>
                         <span className="text-muted-foreground">{loading ? '...' : stats.pending}</span>
                       </div>
@@ -354,7 +356,7 @@ export default function Dashboard() {
                     {/* Total */}
                     <div className="pt-4 border-t border-border/50">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold">Total Asignados</span>
+                        <span className="text-sm font-semibold">{t('dashboard.charts.totalAssigned')}</span>
                         <span className="text-2xl font-bold text-primary">{loading ? '...' : stats.myTickets}</span>
                       </div>
                     </div>
@@ -365,8 +367,8 @@ export default function Dashboard() {
               {/* Info Card */}
               <Card className="md:col-span-1 bg-gradient-to-br from-primary/5 via-accent/5 to-background">
                 <CardHeader>
-                  <CardTitle className="text-lg">Mi Rendimiento</CardTitle>
-                  <CardDescription>Métricas de tu trabajo</CardDescription>
+                  <CardTitle className="text-lg">{t('dashboard.charts.myPerformance')}</CardTitle>
+                  <CardDescription>{t('dashboard.charts.workMetrics')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-border/50">
@@ -375,8 +377,8 @@ export default function Dashboard() {
                         <CheckCircle2 className="w-5 h-5 text-green-500" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Completados</p>
-                        <p className="text-xs text-muted-foreground">Tickets resueltos</p>
+                        <p className="text-sm font-medium">{t('dashboard.charts.completed')}</p>
+                        <p className="text-xs text-muted-foreground">{t('dashboard.charts.resolvedTickets')}</p>
                       </div>
                     </div>
                     <span className="text-lg font-bold text-green-500">
@@ -390,8 +392,8 @@ export default function Dashboard() {
                         <Clock className="w-5 h-5 text-yellow-500" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">En Atención</p>
-                        <p className="text-xs text-muted-foreground">Trabajando ahora</p>
+                        <p className="text-sm font-medium">{t('dashboard.charts.inAttention')}</p>
+                        <p className="text-xs text-muted-foreground">{t('dashboard.charts.workingNow')}</p>
                       </div>
                     </div>
                     <span className="text-lg font-bold text-yellow-500">
@@ -405,8 +407,8 @@ export default function Dashboard() {
                         <AlertCircle className="w-5 h-5 text-orange-500" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Por Atender</p>
-                        <p className="text-xs text-muted-foreground">Esperando inicio</p>
+                        <p className="text-sm font-medium">{t('dashboard.stats.pendingAttention')}</p>
+                        <p className="text-xs text-muted-foreground">{t('dashboard.stats.waiting')}</p>
                       </div>
                     </div>
                     <span className="text-lg font-bold text-orange-500">
@@ -425,26 +427,26 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Técnicos Activos</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('dashboard.admin.activeTechnicians')}</CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{loading ? '...' : stats.technicians}</div>
                   <p className="text-xs text-muted-foreground">
-                    Disponibles para asignación
+                    {t('dashboard.admin.availableForAssignment')}
                   </p>
                 </CardContent>
               </Card>
               
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Pendientes</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('dashboard.stats.pending')}</CardTitle>
                   <AlertCircle className="h-4 w-4 text-orange-500" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-orange-500">{loading ? '...' : stats.pending}</div>
                   <p className="text-xs text-muted-foreground">
-                    Esperando atención
+                    {t('dashboard.stats.awaitingAttention')}
                   </p>
                 </CardContent>
               </Card>
@@ -455,8 +457,8 @@ export default function Dashboard() {
               {/* Chart Card */}
               <Card className="md:col-span-1">
                 <CardHeader>
-                  <CardTitle className="text-lg">Distribución de Tickets</CardTitle>
-                  <CardDescription>Estado actual de todos los tickets</CardDescription>
+                  <CardTitle className="text-lg">{t('dashboard.charts.ticketDistribution')}</CardTitle>
+                  <CardDescription>{t('dashboard.charts.currentState')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -465,7 +467,7 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                          <span className="font-medium">Resueltos</span>
+                          <span className="font-medium">{t('dashboard.stats.resolved')}</span>
                         </div>
                         <span className="text-muted-foreground">{loading ? '...' : stats.resolved}</span>
                       </div>
@@ -482,7 +484,7 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                          <span className="font-medium">En Proceso</span>
+                          <span className="font-medium">{t('dashboard.stats.inProgress')}</span>
                         </div>
                         <span className="text-muted-foreground">{loading ? '...' : stats.inProgress}</span>
                       </div>
@@ -499,7 +501,7 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                          <span className="font-medium">Pendientes</span>
+                          <span className="font-medium">{t('dashboard.stats.pending')}</span>
                         </div>
                         <span className="text-muted-foreground">{loading ? '...' : stats.pending}</span>
                       </div>
@@ -514,7 +516,7 @@ export default function Dashboard() {
                     {/* Total */}
                     <div className="pt-4 border-t border-border/50">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold">Total de Tickets</span>
+                        <span className="text-sm font-semibold">{t('dashboard.stats.totalTickets')}</span>
                         <span className="text-2xl font-bold text-primary">{loading ? '...' : stats.totalTickets}</span>
                       </div>
                     </div>
@@ -525,8 +527,8 @@ export default function Dashboard() {
               {/* Info Card */}
               <Card className="md:col-span-1 bg-gradient-to-br from-primary/5 via-accent/5 to-background">
                 <CardHeader>
-                  <CardTitle className="text-lg">Resumen del Sistema</CardTitle>
-                  <CardDescription>Información general y rendimiento</CardDescription>
+                  <CardTitle className="text-lg">{t('dashboard.charts.systemSummary')}</CardTitle>
+                  <CardDescription>{t('dashboard.charts.generalInfo')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-border/50">
@@ -535,8 +537,8 @@ export default function Dashboard() {
                         <CheckCircle2 className="w-5 h-5 text-green-500" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Tasa de Resolución</p>
-                        <p className="text-xs text-muted-foreground">Tickets completados</p>
+                        <p className="text-sm font-medium">{t('dashboard.stats.resolutionRate')}</p>
+                        <p className="text-xs text-muted-foreground">{t('dashboard.stats.ticketsCompleted')}</p>
                       </div>
                     </div>
                     <span className="text-lg font-bold text-green-500">
@@ -550,8 +552,8 @@ export default function Dashboard() {
                         <Clock className="w-5 h-5 text-yellow-500" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">En Progreso</p>
-                        <p className="text-xs text-muted-foreground">Tickets activos</p>
+                        <p className="text-sm font-medium">{t('dashboard.stats.inProgressLabel')}</p>
+                        <p className="text-xs text-muted-foreground">{t('dashboard.stats.activeTickets')}</p>
                       </div>
                     </div>
                     <span className="text-lg font-bold text-yellow-500">
@@ -565,8 +567,8 @@ export default function Dashboard() {
                         <Users className="w-5 h-5 text-primary" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Carga Promedio</p>
-                        <p className="text-xs text-muted-foreground">Por técnico</p>
+                        <p className="text-sm font-medium">{t('dashboard.admin.averageLoad')}</p>
+                        <p className="text-xs text-muted-foreground">{t('dashboard.admin.perTechnician')}</p>
                       </div>
                     </div>
                     <span className="text-lg font-bold text-primary">
@@ -587,8 +589,8 @@ export default function Dashboard() {
               {/* Chart Card */}
               <Card className="md:col-span-1">
                 <CardHeader>
-                  <CardTitle className="text-lg">Estado de Mis Tickets</CardTitle>
-                  <CardDescription>Distribución de tus solicitudes</CardDescription>
+                  <CardTitle className="text-lg">{t('dashboard.client.myTicketsStatus')}</CardTitle>
+                  <CardDescription>{t('dashboard.client.requestDistribution')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -597,7 +599,7 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                          <span className="font-medium">Resueltos</span>
+                          <span className="font-medium">{t('dashboard.stats.resolved')}</span>
                         </div>
                         <span className="text-muted-foreground">{loading ? '...' : stats.resolved}</span>
                       </div>
@@ -614,7 +616,7 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                          <span className="font-medium">En Proceso</span>
+                          <span className="font-medium">{t('dashboard.stats.inProgress')}</span>
                         </div>
                         <span className="text-muted-foreground">{loading ? '...' : stats.inProgress}</span>
                       </div>
@@ -631,7 +633,7 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                          <span className="font-medium">Pendientes</span>
+                          <span className="font-medium">{t('dashboard.stats.pending')}</span>
                         </div>
                         <span className="text-muted-foreground">{loading ? '...' : stats.pending}</span>
                       </div>
@@ -646,7 +648,7 @@ export default function Dashboard() {
                     {/* Total */}
                     <div className="pt-4 border-t border-border/50">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold">Total de Mis Tickets</span>
+                        <span className="text-sm font-semibold">{t('dashboard.client.totalMyTickets')}</span>
                         <span className="text-2xl font-bold text-primary">{loading ? '...' : stats.myTickets}</span>
                       </div>
                     </div>
@@ -657,8 +659,8 @@ export default function Dashboard() {
               {/* Info Card */}
               <Card className="md:col-span-1 bg-gradient-to-br from-primary/5 via-accent/5 to-background">
                 <CardHeader>
-                  <CardTitle className="text-lg">Información de Soporte</CardTitle>
-                  <CardDescription>Estado y tiempos de respuesta</CardDescription>
+                  <CardTitle className="text-lg">{t('dashboard.client.supportInfo')}</CardTitle>
+                  <CardDescription>{t('dashboard.client.statusAndResponse')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-border/50">
@@ -667,8 +669,8 @@ export default function Dashboard() {
                         <CheckCircle2 className="w-5 h-5 text-green-500" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Tasa de Resolución</p>
-                        <p className="text-xs text-muted-foreground">Problemas resueltos</p>
+                        <p className="text-sm font-medium">{t('dashboard.stats.resolutionRate')}</p>
+                        <p className="text-xs text-muted-foreground">{t('dashboard.client.problemsResolved')}</p>
                       </div>
                     </div>
                     <span className="text-lg font-bold text-green-500">
@@ -682,8 +684,8 @@ export default function Dashboard() {
                         <Clock className="w-5 h-5 text-yellow-500" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">En Atención</p>
-                        <p className="text-xs text-muted-foreground">Tickets activos</p>
+                        <p className="text-sm font-medium">{t('dashboard.client.inAttention')}</p>
+                        <p className="text-xs text-muted-foreground">{t('dashboard.stats.activeTickets')}</p>
                       </div>
                     </div>
                     <span className="text-lg font-bold text-yellow-500">
@@ -697,8 +699,8 @@ export default function Dashboard() {
                         <AlertCircle className="w-5 h-5 text-orange-500" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Esperando</p>
-                        <p className="text-xs text-muted-foreground">Por asignar</p>
+                        <p className="text-sm font-medium">{t('dashboard.client.waiting')}</p>
+                        <p className="text-xs text-muted-foreground">{t('dashboard.client.toBeAssigned')}</p>
                       </div>
                     </div>
                     <span className="text-lg font-bold text-orange-500">
@@ -712,8 +714,8 @@ export default function Dashboard() {
             {/* Recent Tickets List */}
             <Card className="mt-6">
               <CardHeader>
-                <CardTitle className="text-lg">Últimos Tickets</CardTitle>
-                <CardDescription>Tus solicitudes más recientes</CardDescription>
+                <CardTitle className="text-lg">{t('dashboard.client.latestTickets')}</CardTitle>
+                <CardDescription>{t('dashboard.client.recentRequests')}</CardDescription>
               </CardHeader>
               <CardContent>
                 {loading ? (
@@ -737,7 +739,7 @@ export default function Dashboard() {
                           <div className="flex-1">
                             <h4 className="font-medium text-sm">{ticket.Title}</h4>
                             <p className="text-xs text-muted-foreground">
-                              {ticket.Category?.Name || 'Sin categoría'} • {new Date(ticket.DateCreated).toLocaleDateString()}
+                              {ticket.Category?.Name || t('dashboard.client.noCategory')} • {new Date(ticket.DateCreated).toLocaleDateString()}
                             </p>
                           </div>
                         </div>
@@ -750,7 +752,7 @@ export default function Dashboard() {
                           </span>
                           <Link to={`/tickets`}>
                             <Button variant="ghost" size="sm">
-                              Ver
+                              {t('dashboard.client.view')}
                             </Button>
                           </Link>
                         </div>
@@ -760,8 +762,8 @@ export default function Dashboard() {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Ticket className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p>No tienes tickets aún</p>
-                    <p className="text-sm mt-1">Crea tu primer ticket para reportar un problema</p>
+                    <p>{t('dashboard.client.noTicketsYet')}</p>
+                    <p className="text-sm mt-1">{t('dashboard.client.createFirstTicket')}</p>
                   </div>
                 )}
               </CardContent>

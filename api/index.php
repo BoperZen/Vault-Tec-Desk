@@ -42,6 +42,8 @@ require_once "models/AssignModel.php";
 require_once "models/TicketModel.php";
 require_once "models/PriorityModel.php";
 require_once "models/ServiceReviewModel.php";
+require_once "models/WorkFlowRulesModel.php";
+require_once "models/NotificationModel.php";
 
 /***--- Agregar todos los controladores*/
 require_once "controllers/UserController.php";
@@ -60,6 +62,8 @@ require_once "controllers/AssignController.php";
 require_once "controllers/TicketController.php";
 require_once "controllers/PriorityController.php";
 require_once "controllers/ServiceReviewController.php";
+require_once "controllers/WorkFlowRulesController.php";
+require_once "controllers/NotificationController.php";
 
 //Enrutador
 require_once "routes/RoutesController.php";

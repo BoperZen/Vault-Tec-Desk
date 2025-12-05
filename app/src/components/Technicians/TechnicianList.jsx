@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useNotification } from '@/context/NotificationContext';
 import { 
   User, 
@@ -23,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { getTechnicianAvatarUrl } from '@/hooks/use-avatar';
 import { Progress } from '@/components/ui/progress';
 import {
   Collapsible,
@@ -45,11 +47,11 @@ const getWorkloadStatusIcon = (workload) => {
   return { icon: AlertCircle, color: 'text-red-500 bg-red-500/10' };
 };
 
-const getWorkloadStatusText = (workload) => {
-  if (workload === 0) return 'Disponible';
-  if (workload <= 2) return 'Carga baja';
-  if (workload <= 4) return 'Ocupado';
-  return 'No Disponible';
+const getWorkloadStatusTextKey = (workload) => {
+  if (workload === 0) return 'technicians.workload.available';
+  if (workload <= 2) return 'technicians.workload.lowLoad';
+  if (workload <= 4) return 'technicians.workload.busy';
+  return 'technicians.workload.notAvailable';
 };
 
 const getWorkloadColor = (workload) => {
@@ -64,15 +66,16 @@ const getWorkloadBgColor = (workload) => {
   return 'bg-red-500';
 };
 
-const getWorkloadLabel = (workload) => {
-  if (workload === 0) return 'Sin carga';
-  if (workload <= 2) return 'Carga baja';
-  if (workload <= 3) return 'Carga media';
-  if (workload <= 4) return 'Carga alta';
-  return 'Carga máxima';
+const getWorkloadLabelKey = (workload) => {
+  if (workload === 0) return 'technicians.workload.noLoad';
+  if (workload <= 2) return 'technicians.workload.lowLoad';
+  if (workload <= 3) return 'technicians.workload.mediumLoad';
+  if (workload <= 4) return 'technicians.workload.highLoad';
+  return 'technicians.workload.maxLoad';
 };
 
 export default function TechnicianList() {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const { showNotification } = useNotification();
@@ -137,11 +140,11 @@ export default function TechnicianList() {
         setTicketStats(stats);
         setTechnicians(techData);
       } else {
-        setError('Error al cargar los datos');
+        setError(t('technicians.messages.loadError'));
       }
     } catch (err) {
       console.error('Error loading data:', err);
-      setError('Error al conectar con el servidor');
+      setError(t('errors.networkError'));
     } finally {
       setLoading(false);
     }
@@ -199,9 +202,9 @@ export default function TechnicianList() {
       {/* Header */}
       <div className="flex items-center justify-between mt-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Técnicos</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t('technicians.title')}</h1>
           <p className="text-muted-foreground mt-1">
-            Personal técnico del sistema Vault-Tec
+            {t('technicians.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -211,10 +214,10 @@ export default function TechnicianList() {
             className="gap-2"
           >
             <Plus className="h-4 w-4" />
-            Nuevo Técnico
+            {t('technicians.createTechnician')}
           </Button>
           <Badge variant="outline" className="text-sm px-4 py-2">
-            {technicians.length} técnicos
+            {technicians.length} {t('technicians.technicianCount')}
           </Badge>
         </div>
       </div>
@@ -225,12 +228,12 @@ export default function TechnicianList() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-green-500" />
-              Sin Carga
+              {t('technicians.stats.noLoad')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-green-600">
-              {technicians.filter(t => parseInt(t.WorkLoad || 0) === 0).length}
+              {technicians.filter(tech => parseInt(tech.WorkLoad || 0) === 0).length}
             </p>
           </CardContent>
         </Card>
@@ -239,13 +242,13 @@ export default function TechnicianList() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Clock className="w-4 h-4 text-yellow-500" />
-              Carga Media
+              {t('technicians.stats.mediumLoad')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-yellow-600">
-              {technicians.filter(t => {
-                const wl = parseInt(t.WorkLoad || 0);
+              {technicians.filter(tech => {
+                const wl = parseInt(tech.WorkLoad || 0);
                 return wl >= 1 && wl <= 3;
               }).length}
             </p>
@@ -256,12 +259,12 @@ export default function TechnicianList() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-red-500" />
-              Carga Máxima
+              {t('technicians.stats.maxLoad')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-red-600">
-              {technicians.filter(t => parseInt(t.WorkLoad || 0) >= 4).length}
+              {technicians.filter(tech => parseInt(tech.WorkLoad || 0) >= 4).length}
             </p>
           </CardContent>
         </Card>
@@ -270,7 +273,7 @@ export default function TechnicianList() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-accent" />
-              Carga Promedio
+              {t('technicians.stats.averageLoad')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -309,7 +312,7 @@ export default function TechnicianList() {
                       {/* Avatar */}
                       <div className="relative">
                         <Avatar className="w-16 h-16 border-2 border-accent/20">
-                          <AvatarImage src={`https://api.dicebear.com/7.x/${tech.AvatarStyle || 'avataaars'}/svg?seed=${tech.AvatarSeed || tech.Username}`} />
+                          <AvatarImage src={getTechnicianAvatarUrl(tech)} />
                           <AvatarFallback className="bg-accent/10 text-accent text-lg font-bold">
                             {tech.Username.substring(0, 2).toUpperCase()}
                           </AvatarFallback>
@@ -338,7 +341,7 @@ export default function TechnicianList() {
 
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge className={getWorkloadStatusColor(workload)}>
-                            {getWorkloadStatusText(workload)}
+                            {t(getWorkloadStatusTextKey(workload))}
                           </Badge>
                           <Badge variant="outline" className="font-mono text-xs">
                             #{tech.idTechnician}
@@ -348,9 +351,9 @@ export default function TechnicianList() {
                         {/* Workload Progress */}
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">Carga de trabajo</span>
+                            <span className="text-muted-foreground">{t('technicians.fields.workload')}</span>
                             <span className={`font-semibold ${getWorkloadColor(workload)}`}>
-                              {workload}/5 · {getWorkloadLabel(workload)}
+                              {workload}/5 · {t(getWorkloadLabelKey(workload))}
                             </span>
                           </div>
                           <Progress 
@@ -373,7 +376,7 @@ export default function TechnicianList() {
                       <div className="space-y-3">
                         <h4 className="font-semibold flex items-center gap-2 text-sm">
                           <Award className="w-4 h-4 text-accent" />
-                          Especialidades
+                          {t('technicians.details.specialties')}
                         </h4>
                         <div className="flex flex-wrap gap-2">
                           {tech.Specialties.map((specialty, index) => (
@@ -395,12 +398,12 @@ export default function TechnicianList() {
                         <CardContent className="p-3">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                             <Calendar className="w-3 h-3" />
-                            <span>Última Sesión</span>
+                            <span>{t('technicians.details.lastSession')}</span>
                           </div>
                           <p className="text-sm font-medium truncate">
                             {tech.LastSesion && !isNaN(new Date(tech.LastSesion).getTime())
                               ? new Date(tech.LastSesion).toLocaleDateString()
-                              : 'Sin sesión aún'}
+                              : t('technicians.details.noSession')}
                           </p>
                         </CardContent>
                       </Card>
@@ -409,10 +412,10 @@ export default function TechnicianList() {
                         <CardContent className="p-3">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                             <Briefcase className="w-3 h-3" />
-                            <span>Rol</span>
+                            <span>{t('technicians.details.role')}</span>
                           </div>
                           <p className="text-sm font-medium">
-                            {tech.idRol === '1' ? 'Técnico' : tech.idRol === '2' ? 'Cliente' : 'Admin'}
+                            {tech.idRol === '1' ? t('technicians.roles.technician') : tech.idRol === '2' ? t('technicians.roles.client') : t('technicians.roles.admin')}
                           </p>
                         </CardContent>
                       </Card>
@@ -423,22 +426,22 @@ export default function TechnicianList() {
                       <CardHeader className="pb-3">
                         <h4 className="font-semibold flex items-center gap-2 text-sm">
                           <Target className="w-4 h-4 text-primary" />
-                          Métricas de Desempeño
+                          {t('technicians.details.performanceMetrics')}
                         </h4>
                       </CardHeader>
                       <CardContent>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="text-center p-2 rounded-lg bg-background/50">
                             <p className="text-xl font-bold text-primary">{totalTickets}</p>
-                            <p className="text-[10px] text-muted-foreground">Total Tickets</p>
+                            <p className="text-[10px] text-muted-foreground">{t('technicians.metrics.totalTickets')}</p>
                           </div>
                           <div className="text-center p-2 rounded-lg bg-background/50">
                             <p className="text-xl font-bold text-green-600">{stats.resolved}</p>
-                            <p className="text-[10px] text-muted-foreground">Resueltos</p>
+                            <p className="text-[10px] text-muted-foreground">{t('technicians.metrics.resolved')}</p>
                           </div>
                           <div className="text-center p-2 rounded-lg bg-background/50">
                             <p className="text-xl font-bold text-orange-600">{stats.inProgress}</p>
-                            <p className="text-[10px] text-muted-foreground">En Proceso</p>
+                            <p className="text-[10px] text-muted-foreground">{t('technicians.metrics.inProgress')}</p>
                           </div>
                         </div>
                       </CardContent>
@@ -450,10 +453,10 @@ export default function TechnicianList() {
                         className="flex-1 px-4 py-2 text-sm font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                         onClick={() => navigate(`/technicians/edit/${tech.idTechnician}`)}
                       >
-                        Editar Técnico
+                        {t('technicians.editTechnician')}
                       </button>
                       <button className="flex-1 px-4 py-2 text-sm font-medium rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors">
-                        Ver Tickets
+                        {t('technicians.viewTickets')}
                       </button>
                     </div>
                   </CardContent>

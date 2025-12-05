@@ -1,11 +1,13 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from 'react-i18next';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import error from "../../assets/error.jpg";
 
 export function PageNotFound() {
-   const navigate = useNavigate();
+  const navigate = useNavigate();
+  const { t } = useTranslation();
 
   return (
     <main className="mx-auto mt-20 mb-6 max-w-4xl p-6">
@@ -22,11 +24,10 @@ export function PageNotFound() {
         {/* Texto */}
         <div className="md:col-span-8 text-center md:text-left">
           <h1 className="text-3xl font-bold text-foreground mb-4">
-            Recurso no encontrado
+            {t('errors.pageNotFound')}
           </h1>
           <p className="text-lg text-muted-foreground mb-6">
-            La página que está buscando podría haber sido eliminada, cambió su
-            nombre o no está disponible temporalmente.
+            {t('errors.pageNotFoundDesc')}
           </p>
 
           {/* Botón volver */}
@@ -35,7 +36,7 @@ export function PageNotFound() {
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            Volver
+            {t('common.back')}
           </Button>
         </div>
       </div>

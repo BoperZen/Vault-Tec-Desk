@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useUser } from '@/context/UserContext';
 import { useRole } from '@/hooks/use-role';
+import { useSystemNotifications } from '@/context/SystemNotificationContext';
 import { 
   Ticket, 
   User, 
@@ -57,9 +59,11 @@ const formatDateTimeForDB = (value) => {
  * Formulario completo de creación de tickets
  */
 export default function UpkeepTicket() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { currentUser } = useUser();
   const { isAdmin, isClient, isLoadingRole } = useRole();
+  const { refresh: refreshSystemNotifications } = useSystemNotifications();
 
   // Estados del formulario
   const [loading, setLoading] = useState(false);
@@ -135,7 +139,7 @@ export default function UpkeepTicket() {
         categoriesData = categoriesRes.data?.data || categoriesRes.data || [];
       } catch (err) {
         console.error('Error cargando categorías:', err);
-        throw new Error('No se pudieron cargar las categorías');
+        throw new Error(t('tickets.errors.loadCategories'));
       }
 
       try {
@@ -143,7 +147,7 @@ export default function UpkeepTicket() {
         labelsData = labelsRes.data?.data || labelsRes.data || [];
       } catch (err) {
         console.error('Error cargando etiquetas:', err);
-        throw new Error('No se pudieron cargar las etiquetas');
+        throw new Error(t('tickets.errors.loadLabels'));
       }
 
       // Filtrar solo las 4 primeras categorías (principales)
@@ -162,7 +166,7 @@ export default function UpkeepTicket() {
     } catch (err) {
       console.error('Error al cargar datos:', err);
       console.error('Detalle del error:', err.response || err.message);
-      setError(err.message || 'Error al cargar los datos del formulario');
+      setError(err.message || t('tickets.errors.loadFormData'));
     } finally {
       setLoading(false);
     }
@@ -190,13 +194,13 @@ export default function UpkeepTicket() {
     if (file) {
       // Validar tipo de archivo
       if (!file.type.startsWith('image/')) {
-        setError('Por favor seleccione un archivo de imagen válido');
+        setError(t('tickets.errors.invalidImage'));
         return;
       }
 
       // Validar tamaño (máximo 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        setError('La imagen no debe superar los 5MB');
+        setError(t('tickets.errors.imageTooLarge'));
         return;
       }
 
@@ -230,41 +234,41 @@ export default function UpkeepTicket() {
   const validateForm = () => {
     // Validar título
     if (!formData.Title.trim()) {
-      setError('El título del ticket es obligatorio');
+      setError(t('tickets.errors.titleRequired'));
       return false;
     }
     
     if (formData.Title.trim().length < 5) {
-      setError('El título debe tener al menos 5 caracteres');
+      setError(t('tickets.errors.titleMinLength'));
       return false;
     }
 
     // Validar descripción
     if (!formData.Description.trim()) {
-      setError('La descripción es obligatoria');
+      setError(t('tickets.errors.descriptionRequired'));
       return false;
     }
     
     if (formData.Description.trim().length < 10) {
-      setError('La descripción debe tener al menos 10 caracteres');
+      setError(t('tickets.errors.descriptionMinLength'));
       return false;
     }
 
     // Validar etiqueta
     if (!formData.idLabel) {
-      setError('Debe seleccionar una etiqueta');
+      setError(t('tickets.errors.labelRequired'));
       return false;
     }
 
     // Validar que se haya asignado categoría automáticamente
     if (!formData.idCategory) {
-      setError('No se pudo asignar la categoría automáticamente. Intente seleccionar otra etiqueta');
+      setError(t('tickets.errors.categoryAutoAssign'));
       return false;
     }
 
     // Validar prioridad
     if (!formData.Priority) {
-      setError('No se pudo asignar la prioridad automáticamente. Intente seleccionar otra etiqueta');
+      setError(t('tickets.errors.priorityAutoAssign'));
       return false;
     }
 
@@ -314,11 +318,14 @@ export default function UpkeepTicket() {
         await TicketService.createTicket(ticketData);
       }
       
-      navigate('/tickets', { state: { notification: { message: 'Ticket creado correctamente', type: 'success' } } });
+      // Refrescar notificaciones del sistema inmediatamente
+      refreshSystemNotifications();
+      
+      navigate('/tickets', { state: { notification: { message: t('tickets.createSuccess'), type: 'success' } } });
 
     } catch (err) {
       console.error('Error al guardar ticket:', err);
-      setError(err.response?.data?.message || 'Error al guardar el ticket');
+      setError(err.response?.data?.message || t('tickets.errors.saveTicket'));
       setSaving(false); // Solo resetear si hay error
     }
   };
@@ -335,7 +342,7 @@ export default function UpkeepTicket() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-muted-foreground">Cargando formulario...</p>
+          <p className="mt-4 text-muted-foreground">{t('tickets.loadingForm')}</p>
         </div>
       </div>
     );
@@ -351,14 +358,14 @@ export default function UpkeepTicket() {
             </div>
             <div className="flex-1">
               <CardTitle className="text-2xl">
-                Crear Nuevo Ticket
+                {t('tickets.createNewTicket')}
               </CardTitle>
               <CardDescription>
-                Complete el formulario para registrar un nuevo ticket en el sistema
+                {t('tickets.createNewTicketDescription')}
               </CardDescription>
             </div>
             <Badge variant="default">
-              Nuevo
+              {t('common.new')}
             </Badge>
           </div>
         </CardHeader>
@@ -384,14 +391,14 @@ export default function UpkeepTicket() {
             <div className="space-y-2">
               <Label htmlFor="title" className="flex items-center gap-2">
                 <MessageSquare className="h-4 w-4" />
-                Título del Ticket
+                {t('tickets.fields.ticketTitle')}
                 <span className="text-red-500">*</span>
               </Label>
               <div className="relative">
                 <input
                   type="text"
                   id="title"
-                  placeholder="Titulo del ticket"
+                  placeholder={t('tickets.placeholders.ticketTitle')}
                   value={formData.Title}
                   onChange={(e) => handleInputChange('Title', e.target.value.slice(0, 45))}
                   disabled={saving}
@@ -408,13 +415,13 @@ export default function UpkeepTicket() {
             <div className="space-y-2">
               <Label htmlFor="description" className="flex items-center gap-2">
                 <MessageSquare className="h-4 w-4" />
-                Descripción Detallada
+                {t('tickets.fields.detailedDescription')}
                 <span className="text-red-500">*</span>
               </Label>
               <div className="relative">
                 <textarea
                   id="description"
-                  placeholder="Describe el problema..."
+                  placeholder={t('tickets.placeholders.describeProblem')}
                   value={formData.Description}
                   onChange={(e) => handleInputChange('Description', e.target.value.slice(0, 150))}
                   disabled={saving}
@@ -432,7 +439,7 @@ export default function UpkeepTicket() {
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Star className="h-4 w-4" />
-                Etiqueta relacionada
+                {t('tickets.fields.relatedLabel')}
                 <span className="text-red-500">*</span>
               </Label>
               
@@ -449,9 +456,9 @@ export default function UpkeepTicket() {
                       {formData.idLabel 
                         ? (() => {
                             const label = labels.find(l => l.idLabel == formData.idLabel);
-                            return label?.Description || label?.LabelName || 'Etiqueta seleccionada';
+                            return label?.Description || label?.LabelName || t('tickets.fields.selectedLabel');
                           })()
-                        : 'Seleccione una etiqueta'
+                        : t('tickets.fields.selectLabel')
                       }
                     </span>
                     <span className="text-xs">{labelAccordionOpen ? '▲' : '▼'}</span>
@@ -463,7 +470,7 @@ export default function UpkeepTicket() {
                       style={{ maxHeight: '250px', scrollbarWidth: 'thin', scrollbarColor: 'rgb(202 138 4 / 0.6) transparent' }}
                     >
                       {labels.map((label) => {
-                        const displayName = label.Description || label.LabelName || `Etiqueta ${label.idLabel}`;
+                        const displayName = label.Description || label.LabelName || `${t('tickets.fields.label')} ${label.idLabel}`;
                         const isSelected = formData.idLabel == label.idLabel;
                         return (
                           <button
@@ -496,10 +503,10 @@ export default function UpkeepTicket() {
                       <FolderKanban className="w-4 h-4 text-white/90" aria-hidden="true" />
 
                       <div className="flex flex-col">
-                        <span className="text-xs text-slate-400">Categoría</span>
+                        <span className="text-xs text-slate-400">{t('tickets.fields.category')}</span>
                         <span className="leading-none">{(() => {
                           const cat = categories.find(c => c.idCategory == formData.idCategory);
-                          return cat?.Categoryname || 'Categoría';
+                          return cat?.Categoryname || t('tickets.fields.category');
                         })()}</span>
                       </div>
                     </div>
@@ -514,7 +521,7 @@ export default function UpkeepTicket() {
             <div className="space-y-2">
               <Label htmlFor="image" className="flex items-center gap-2">
                 <ImageIcon className="h-4 w-4" />
-                Imagen Adjunta (Opcional)
+                {t('tickets.fields.attachedImage')}
               </Label>
               
               {!formData.ImagePreview ? (
@@ -558,7 +565,7 @@ export default function UpkeepTicket() {
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                Formatos: JPG, PNG, GIF. Tamaño máximo: 5MB
+                {t('tickets.imageFormats')}
               </p>
             </div>
 
@@ -582,7 +589,7 @@ export default function UpkeepTicket() {
                 className="cursor-pointer disabled:cursor-not-allowed"
               >
                 <X className="h-4 w-4 mr-2" />
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -592,12 +599,12 @@ export default function UpkeepTicket() {
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Guardando...
+                    {t('common.saving')}
                   </>
                 ) : (
                   <>
                     <Save className="h-4 w-4 mr-2" />
-                    Crear Ticket
+                    {t('tickets.createTicket')}
                   </>
                 )}
               </Button>
