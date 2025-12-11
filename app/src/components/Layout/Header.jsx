@@ -105,7 +105,7 @@ const getNotificationStyle = (event) => {
 };
 
 export default function Header() {
-  const { currentUser } = useUser();
+  const { currentUser, logout } = useUser();
   const { open } = useSidebar();
   const { isFullscreen, toggleFullscreen } = useFullscreen();
   const navigate = useNavigate();
@@ -123,6 +123,12 @@ export default function Header() {
   const toggleLanguage = () => {
     const newLang = i18n.language === 'es' ? 'en' : 'es';
     i18n.changeLanguage(newLang);
+  };
+
+  // Manejar cierre de sesión
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   // Navegar a la página de notificaciones con el ID seleccionado
@@ -344,7 +350,10 @@ export default function Header() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive cursor-pointer">
+                <DropdownMenuItem 
+                  className="text-destructive cursor-pointer"
+                  onClick={handleLogout}
+                >
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>{t('header.logout')}</span>
                 </DropdownMenuItem>

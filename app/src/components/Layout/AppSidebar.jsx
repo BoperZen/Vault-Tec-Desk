@@ -1,4 +1,4 @@
-import { Home, Ticket, Users, FolderKanban, Settings, ChevronRight, ChevronLeft, Calendar, User, Bell } from 'lucide-react';
+import { Home, Ticket, Users, FolderKanban, Settings, ChevronRight, ChevronLeft, Calendar, User, Bell, UserCog } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useRole } from '@/hooks/use-role';
@@ -93,6 +93,12 @@ const getMenuItems = (role, t) => {
         icon: FolderKanban,
         url: '/categories',
         description: t('sidebar.descriptions.categories'),
+      },
+      {
+        title: t('navigation.users'),
+        icon: UserCog,
+        url: '/users',
+        description: t('sidebar.descriptions.users'),
       },
       {
         title: t('navigation.notifications'),

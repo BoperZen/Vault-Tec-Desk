@@ -94,6 +94,7 @@ export default function UpkeepTicket() {
   // Cargar datos iniciales
   useEffect(() => {
     loadInitialData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
